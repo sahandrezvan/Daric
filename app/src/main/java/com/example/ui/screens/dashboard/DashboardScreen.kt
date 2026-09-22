@@ -238,7 +238,77 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(ver…1135 tokens truncated…t.Bold),
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = ExpenseRed,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "سررسید اقساط (نیاز به پرداخت)",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = ExpenseRed
+                            )
+                        }
+
+                        TextButton(onClick = onInstallmentsClick) {
+                            Text(
+                                text = "همه اقساط",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    dueInstallments.sortedBy {
+                        InstallmentScheduleHelper.nextUnpaid(it)?.scheduledDueDate ?: Long.MAX_VALUE
+                    }.take(1).forEach { inst ->
+                        val (status, diffDays) = calculateDueStatus(inst)
+                        val nextItem = InstallmentScheduleHelper.nextUnpaid(inst)
+                        val dueDateStr = JalaliCalendar.formatDate(nextItem?.scheduledDueDate ?: inst.firstDueDate, isShamsi = isShamsi)
+                        val badgeText = when (status) {
+                            DueStatus.OVERDUE -> "⚠️ سررسید گذشته ($diffDays روز)"
+                            DueStatus.DUE_TODAY -> "🔔 سررسید امروز!"
+                            DueStatus.DUE_SOON -> "⚡ $diffDays روز مانده"
+                            else -> dueDateStr
+                        }
+
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = ExpenseRed.copy(alpha = 0.08f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = inst.title,
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "مبلغ قسط: ${CurrencyFormatter.format(nextItem?.let { InstallmentScheduleHelper.amountFor(inst, it.index) } ?: inst.installmentAmount, userSettings.currency, userSettings.digitFormat)} (${nextItem?.index ?: inst.paidInstallments + 1}/${inst.totalInstallments})",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = ExpenseRed.copy(alpha = 0.2f)
+                                    ) {
+                                        Text(
+                                            text = badgeText,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                             color = ExpenseRed,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
