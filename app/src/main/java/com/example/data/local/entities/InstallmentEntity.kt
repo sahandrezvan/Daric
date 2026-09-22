@@ -14,6 +14,8 @@ data class InstallmentEntity(
     val paidInstallments: Int = 0,
     val installmentAmount: Long,
     val firstDueDate: Long,
+    /** Immutable anchor used to generate the month-by-month schedule. */
+    val scheduleStartDate: Long = firstDueDate,
     val accountId: Long,
     val status: InstallmentStatus = InstallmentStatus.PENDING,
     val note: String = "",

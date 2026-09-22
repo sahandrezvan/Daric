@@ -153,23 +153,17 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun payNextInstallment(installmentId: Long) = withContext(Dispatchers.IO) {
         val list = dao.getAllInstallmentsSnapshot()
         val inst = list.find { it.id == installmentId } ?: return@withContext
-        if (inst.paidInstallments < inst.totalInstallments) {
-            val updatedPaid = inst.paidInstallments + 1
-            val isFinished = updatedPaid >= inst.totalInstallments
-            val nextDueDate = if (!isFinished) {
-                java.util.Calendar.getInstance().apply {
-                    timeInMillis = inst.firstDueDate
-                    add(java.util.Calendar.MONTH, 1)
-                }.timeInMillis
-            } else inst.firstDueDate
-            dao.updateInstallment(
-                inst.copy(
-                    paidInstallments = updatedPaid,
-                    firstDueDate = nextDueDate,
-                    status = if (isFinished) InstallmentStatus.PAID else InstallmentStatus.PENDING
-                )
+        val nextItem = com.example.core.util.InstallmentScheduleHelper.nextUnpaid(inst)
+        if (nextItem != null) {
+            val updated = com.example.core.util.InstallmentScheduleHelper.toggleItem(
+                inst = inst,
+                itemIndex = nextItem.index,
+                isPaid = true,
+                paidTimestamp = System.currentTimeMillis()
             )
-            dao.adjustAccountBalance(inst.accountId, -inst.installmentAmount)
+            dao.updateInstallment(updated)
+            val paymentAmount = com.example.core.util.InstallmentScheduleHelper.amountFor(inst, nextItem.index)
+            dao.adjustAccountBalance(inst.accountId, -paymentAmount)
 
             val categories = dao.getAllCategoriesSnapshot()
             val billsCategory = categories.find { it.nameFa == "قبوض" || it.name == "Bills" }
@@ -179,9 +173,9 @@ class FinanceRepository(private val db: AppDatabase) {
                     accountId = inst.accountId,
                     categoryId = catId,
                     type = TransactionType.EXPENSE,
-                    amount = inst.installmentAmount,
+                    amount = paymentAmount,
                     timestamp = System.currentTimeMillis(),
-                    description = "پرداخت قسط: ${inst.title} ($updatedPaid/${inst.totalInstallments})",
+                    description = "پرداخت قسط: ${inst.title} (${nextItem.index}/${inst.totalInstallments})",
                     note = inst.note
                 )
             )
@@ -206,7 +200,8 @@ class FinanceRepository(private val db: AppDatabase) {
 
         if (deductFromAccount) {
             if (isPaid) {
-                dao.adjustAccountBalance(inst.accountId, -inst.installmentAmount)
+                val paymentAmount = com.example.core.util.InstallmentScheduleHelper.amountFor(inst, itemIndex)
+                dao.adjustAccountBalance(inst.accountId, -paymentAmount)
                 val categories = dao.getAllCategoriesSnapshot()
                 val billsCategory = categories.find { it.nameFa == "قبوض" || it.name == "Bills" }
                 val catId = billsCategory?.id ?: categories.firstOrNull()?.id ?: 1L
@@ -215,14 +210,15 @@ class FinanceRepository(private val db: AppDatabase) {
                         accountId = inst.accountId,
                         categoryId = catId,
                         type = TransactionType.EXPENSE,
-                        amount = inst.installmentAmount,
+                        amount = paymentAmount,
                         timestamp = System.currentTimeMillis(),
                         description = "پرداخت قسط: ${inst.title} ($itemIndex/${inst.totalInstallments})",
                         note = inst.note
                     )
                 )
             } else {
-                dao.adjustAccountBalance(inst.accountId, inst.installmentAmount)
+                val paymentAmount = com.example.core.util.InstallmentScheduleHelper.amountFor(inst, itemIndex)
+                dao.adjustAccountBalance(inst.accountId, paymentAmount)
             }
         }
     }
@@ -364,6 +360,7 @@ class FinanceRepository(private val db: AppDatabase) {
             o.put("paidInstallments", inst.paidInstallments)
             o.put("installmentAmount", inst.installmentAmount)
             o.put("firstDueDate", inst.firstDueDate)
+            o.put("scheduleStartDate", inst.scheduleStartDate)
             o.put("accountId", inst.accountId)
             o.put("status", inst.status.name)
             o.put("note", inst.note)
@@ -572,6 +569,10 @@ class FinanceRepository(private val db: AppDatabase) {
                                 paidInstallments = o.optInt("paidInstallments", 0).coerceAtLeast(0),
                                 installmentAmount = o.optLong("installmentAmount", 0L),
                                 firstDueDate = o.optLong("firstDueDate", System.currentTimeMillis()),
+                                scheduleStartDate = o.optLong(
+                                    "scheduleStartDate",
+                                    o.optLong("firstDueDate", System.currentTimeMillis())
+                                ),
                                 accountId = mappedAccount(o.optLong("accountId", 0L)),
                                 status = runCatching {
                                     InstallmentStatus.valueOf(o.optString("status"))

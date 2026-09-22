@@ -12,6 +12,23 @@ data class InstallmentTaskItem(
 
 object InstallmentScheduleHelper {
 
+    fun scheduleStart(inst: InstallmentEntity): Long {
+        if (inst.scheduleStartDate > 0L) return inst.scheduleStartDate
+        return JalaliCalendar.addMonths(inst.firstDueDate, -inst.paidInstallments.coerceAtLeast(0))
+    }
+
+    fun installmentAmount(totalAmount: Long, totalInstallments: Int): Long {
+        if (totalAmount <= 0L || totalInstallments <= 0) return 0L
+        return (totalAmount + totalInstallments - 1L) / totalInstallments
+    }
+
+    fun amountFor(inst: InstallmentEntity, itemIndex: Int): Long {
+        if (itemIndex !in 1..inst.totalInstallments) return 0L
+        if (itemIndex < inst.totalInstallments) return inst.installmentAmount
+        return (inst.totalAmount - inst.installmentAmount * (inst.totalInstallments - 1L))
+            .coerceAtLeast(0L)
+    }
+
     fun parsePaidMap(paidIndicesWithDates: String, paidInstallments: Int): Map<Int, Long> {
         val map = mutableMapOf<Int, Long>()
         if (paidIndicesWithDates.isNotBlank()) {
@@ -40,9 +57,10 @@ object InstallmentScheduleHelper {
 
     fun generateSchedule(inst: InstallmentEntity): List<InstallmentTaskItem> {
         val paidMap = parsePaidMap(inst.paidIndicesWithDates, inst.paidInstallments)
+        val anchor = scheduleStart(inst)
         val items = mutableListOf<InstallmentTaskItem>()
         for (i in 1..inst.totalInstallments) {
-            val scheduledDate = JalaliCalendar.addMonths(inst.firstDueDate, i - 1)
+            val scheduledDate = JalaliCalendar.addMonths(anchor, i - 1)
             val isPaid = paidMap.containsKey(i)
             val paidTs = paidMap[i]?.takeIf { it > 0 }
             items.add(
@@ -56,6 +74,9 @@ object InstallmentScheduleHelper {
         }
         return items
     }
+
+    fun nextUnpaid(inst: InstallmentEntity): InstallmentTaskItem? =
+        generateSchedule(inst).firstOrNull { !it.isPaid }
 
     /**
      * Toggles an installment item (paid / unpaid) and returns updated InstallmentEntity
@@ -77,10 +98,11 @@ object InstallmentScheduleHelper {
         val serialized = serializePaidMap(map)
 
         // Find the earliest unpaid item due date
+        val anchor = scheduleStart(inst)
         var nextDue = inst.firstDueDate
         for (i in 1..inst.totalInstallments) {
             if (!map.containsKey(i)) {
-                nextDue = JalaliCalendar.addMonths(inst.firstDueDate, i - 1)
+                nextDue = JalaliCalendar.addMonths(anchor, i - 1)
                 break
             }
         }
@@ -88,6 +110,7 @@ object InstallmentScheduleHelper {
         return inst.copy(
             paidInstallments = newPaidCount,
             firstDueDate = nextDue,
+            scheduleStartDate = anchor,
             status = if (isFinished) InstallmentStatus.PAID else InstallmentStatus.PENDING,
             paidIndicesWithDates = serialized
         )

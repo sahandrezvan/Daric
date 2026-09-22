@@ -39,6 +39,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,8 +52,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.core.model.DigitFormat
+import com.example.core.model.WeatherInfo
 import com.example.core.util.CurrencyFormatter
 import com.example.core.util.JalaliCalendar
+import com.example.core.util.InstallmentScheduleHelper
 import com.example.data.local.entities.AccountEntity
 import com.example.data.local.entities.CategoryEntity
 import com.example.data.local.entities.InstallmentEntity
@@ -58,12 +65,15 @@ import com.example.ui.components.AccountCard
 import com.example.ui.components.FinancialMetricsGrid
 import com.example.ui.components.MonthlySummaryCard
 import com.example.ui.components.NetWorthCard
-import com.example.ui.components.QuickActionsGrid
 import com.example.ui.components.TransactionRowItem
 import com.example.ui.screens.installments.DueStatus
 import com.example.ui.screens.installments.calculateDueStatus
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
@@ -75,6 +85,7 @@ fun DashboardScreen(
     netWorth: Long,
     monthlyIncome: Long,
     monthlyExpense: Long,
+    weather: WeatherInfo = WeatherInfo(),
     onAccountClick: (AccountEntity) -> Unit,
     onAddAccountClick: () -> Unit,
     onTransactionClick: (TransactionEntity) -> Unit,
@@ -98,6 +109,24 @@ fun DashboardScreen(
         PaddingValues(horizontal = 16.dp, vertical = 10.dp)
     } else {
         PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+    }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
+    val clock = remember(now) { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(now)) }
+    val weatherLabel = when (weather.weatherCode) {
+        0 -> "صاف"
+        1, 2 -> "کمی ابری"
+        3 -> "ابری"
+        45, 48 -> "مه‌آلود"
+        in 51..67, in 80..82 -> "بارانی"
+        in 71..77 -> "برفی"
+        in 95..99 -> "رعدوبرق"
+        else -> "هواشناسی"
     }
 
     // Filter installments that are due today, overdue, or due within 3 days
@@ -133,7 +162,7 @@ fun DashboardScreen(
                     if (!compact) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = todayFormatted,
+                            text = "$todayFormatted  •  $clock",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -141,6 +170,18 @@ fun DashboardScreen(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                    ) {
+                        Text(
+                            text = weather.temperature?.let { "☀ ${it.toInt()}°  $weatherLabel" } ?: "☁ هوا نامشخص",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
                     IconButton(
                         onClick = onSearchClick,
                         modifier = Modifier
@@ -188,18 +229,7 @@ fun DashboardScreen(
             )
         }
 
-        // Quick Actions — hidden in compact (available via bottom tabs)
-        if (!compact) {
-            item {
-                QuickActionsGrid(
-                    onMarketRatesClick = onMarketRatesClick,
-                    onInstallmentsClick = onInstallmentsClick,
-                    onGoalsClick = onGoalsClick
-                )
-            }
-        }
-
-        // 3. Installments Due Alerts (هر وقت رسید نمایش بده)
+        // 3. Only the nearest actionable installment is shown to keep Home calm.
         if (dueInstallments.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -232,9 +262,12 @@ fun DashboardScreen(
                         }
                     }
 
-                    dueInstallments.forEach { inst ->
+                    dueInstallments.sortedBy {
+                        InstallmentScheduleHelper.nextUnpaid(it)?.scheduledDueDate ?: Long.MAX_VALUE
+                    }.take(1).forEach { inst ->
                         val (status, diffDays) = calculateDueStatus(inst)
-                        val dueDateStr = JalaliCalendar.formatDate(inst.firstDueDate, isShamsi = isShamsi)
+                        val nextItem = InstallmentScheduleHelper.nextUnpaid(inst)
+                        val dueDateStr = JalaliCalendar.formatDate(nextItem?.scheduledDueDate ?: inst.firstDueDate, isShamsi = isShamsi)
                         val badgeText = when (status) {
                             DueStatus.OVERDUE -> "⚠️ سررسید گذشته ($diffDays روز)"
                             DueStatus.DUE_TODAY -> "🔔 سررسید امروز!"
@@ -263,7 +296,7 @@ fun DashboardScreen(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "مبلغ قسط: ${CurrencyFormatter.format(inst.installmentAmount, userSettings.currency, userSettings.digitFormat)} (${inst.paidInstallments + 1}/${inst.totalInstallments})",
+                                            text = "مبلغ قسط: ${CurrencyFormatter.format(nextItem?.let { InstallmentScheduleHelper.amountFor(inst, it.index) } ?: inst.installmentAmount, userSettings.currency, userSettings.digitFormat)} (${nextItem?.index ?: inst.paidInstallments + 1}/${inst.totalInstallments})",
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -310,10 +343,13 @@ fun DashboardScreen(
             }
         } else if (activeInstallments.isNotEmpty()) {
             // Upcoming installments quick card
-            val nearest = activeInstallments.minByOrNull { it.firstDueDate }
+            val nearest = activeInstallments.minByOrNull {
+                InstallmentScheduleHelper.nextUnpaid(it)?.scheduledDueDate ?: Long.MAX_VALUE
+            }
             if (nearest != null) {
                 item {
-                    val formattedNextDate = JalaliCalendar.formatDate(nearest.firstDueDate, isShamsi = isShamsi)
+                    val nearestItem = InstallmentScheduleHelper.nextUnpaid(nearest)
+                    val formattedNextDate = JalaliCalendar.formatDate(nearestItem?.scheduledDueDate ?: nearest.firstDueDate, isShamsi = isShamsi)
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
@@ -350,7 +386,7 @@ fun DashboardScreen(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "تاریخ سررسید: $formattedNextDate | ${CurrencyFormatter.format(nearest.installmentAmount, userSettings.currency, userSettings.digitFormat)}",
+                                        text = "تاریخ سررسید: $formattedNextDate | ${CurrencyFormatter.format(nearestItem?.let { InstallmentScheduleHelper.amountFor(nearest, it.index) } ?: nearest.installmentAmount, userSettings.currency, userSettings.digitFormat)}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -369,26 +405,15 @@ fun DashboardScreen(
             }
         }
 
-        // 4. Financial Metrics Grid (2x2) — compact uses single summary row
+        // 4. One calm monthly summary instead of a dense metrics grid.
         item {
-            if (compact) {
-                MonthlySummaryCard(
-                    income = monthlyIncome,
-                    expense = monthlyExpense,
-                    savings = monthlySavings,
-                    currency = userSettings.currency,
-                    digitFormat = userSettings.digitFormat
-                )
-            } else {
-                FinancialMetricsGrid(
-                    income = monthlyIncome,
-                    expense = monthlyExpense,
-                    savings = monthlySavings,
-                    installmentsCommitment = totalInstallmentMonthly,
-                    currency = userSettings.currency,
-                    digitFormat = userSettings.digitFormat
-                )
-            }
+            MonthlySummaryCard(
+                income = monthlyIncome,
+                expense = monthlyExpense,
+                savings = monthlySavings,
+                currency = userSettings.currency,
+                digitFormat = userSettings.digitFormat
+            )
         }
 
         // 5. Accounts Header & Carousel
@@ -453,7 +478,7 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp)
                     ) {
-                        items(accounts, key = { it.id }) { acc ->
+                        items(accounts.take(2), key = { it.id }) { acc ->
                             AccountCard(
                                 account = acc,
                                 currency = userSettings.currency,
@@ -524,7 +549,7 @@ fun DashboardScreen(
                 }
             }
         } else {
-            items(recentTransactions.take(8), key = { it.id }) { tx ->
+            items(recentTransactions.take(3), key = { it.id }) { tx ->
                 val category = categoryMap[tx.categoryId]
                 val account = accountMap[tx.accountId]
                 val destAccount = tx.destinationAccountId?.let { accountMap[it] }

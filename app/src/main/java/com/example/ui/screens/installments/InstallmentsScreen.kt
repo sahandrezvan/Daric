@@ -1,5 +1,6 @@
 package com.example.ui.screens.installments
 
+import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -74,6 +75,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
@@ -89,6 +91,7 @@ import com.example.data.local.entities.AccountEntity
 import com.example.data.local.entities.InstallmentEntity
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import java.util.Calendar
 
 enum class DueStatus {
     OVERDUE,
@@ -103,8 +106,10 @@ fun calculateDueStatus(inst: InstallmentEntity): Pair<DueStatus, Int> {
         return Pair(DueStatus.COMPLETED, 0)
     }
 
+    val dueDate = InstallmentScheduleHelper.nextUnpaid(inst)?.scheduledDueDate
+        ?: return Pair(DueStatus.COMPLETED, 0)
     val now = System.currentTimeMillis()
-    val diffMillis = inst.firstDueDate - now
+    val diffMillis = dueDate - now
     val diffDays = (diffMillis / (1000 * 60 * 60 * 24)).toInt()
 
     return when {
@@ -122,6 +127,7 @@ fun InstallmentsScreen(
     accounts: List<AccountEntity>,
     currency: String,
     digitFormat: DigitFormat,
+    isShamsi: Boolean = true,
     onAddInstallment: (title: String, totalAmount: Long, totalInstallments: Int, paidInstallments: Int, installmentAmount: Long, firstDueDate: Long, accountId: Long, note: String) -> Unit,
     onPayInstallment: (Long) -> Unit,
     onToggleInstallmentItem: (installmentId: Long, itemIndex: Int, isPaid: Boolean, deduct: Boolean) -> Unit = { _, _, _, _ -> },
@@ -612,15 +618,19 @@ fun InstallmentsScreen(
     // Add Installment Dialog
     if (showAddDialog) {
         var title by remember { mutableStateOf("") }
-        var installmentAmountInput by remember { mutableStateOf("") }
+        var totalAmountInput by remember { mutableStateOf("") }
         var totalCountInput by remember { mutableStateOf("24") } // Default to 24-month loan as requested
         var paidCountInput by remember { mutableStateOf("0") }
-        var selectedDueDaysAhead by remember { mutableIntStateOf(0) }
+        var selectedDueDate by remember { mutableLongStateOf(System.currentTimeMillis()) }
         var selectedAccId by remember {
             mutableLongStateOf(accounts.firstOrNull()?.id ?: 1L)
         }
         var accDropdownExpanded by remember { mutableStateOf(false) }
         var note by remember { mutableStateOf("") }
+        val context = LocalContext.current
+        val totalAmount = totalAmountInput.toLongOrNull() ?: 0L
+        val totalCount = totalCountInput.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val calculatedInstallment = InstallmentScheduleHelper.installmentAmount(totalAmount, totalCount)
 
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
@@ -645,12 +655,12 @@ fun InstallmentsScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // مبلغ هر قسط
+                    // مبلغ کل وام؛ مبلغ هر قسط خودکار محاسبه می‌شود
                     OutlinedTextField(
-                        value = installmentAmountInput,
-                        onValueChange = { installmentAmountInput = it.filter { c -> c.isDigit() } },
-                        label = { Text("مبلغ هر قسط ($currency)") },
-                        placeholder = { Text("مثلاً ۲۵۰۰۰۰۰") },
+                        value = totalAmountInput,
+                        onValueChange = { totalAmountInput = it.filter { c -> c.isDigit() } },
+                        label = { Text("مبلغ کل وام / خرید ($currency)") },
+                        placeholder = { Text("مثلاً ۶۰۰۰۰۰۰۰") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -712,6 +722,34 @@ fun InstallmentsScreen(
                         }
                     }
 
+                    if (totalAmount > 0L && totalCount > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text(
+                                    text = "مبلغ هر قسط",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = CurrencyFormatter.format(calculatedInstallment, currency, digitFormat),
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (calculatedInstallment * totalCount != totalAmount) {
+                                    Text(
+                                        text = "قسط آخر برای تطبیق دقیق با مبلغ کل، خودکار تنظیم می‌شود.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // تاریخ سررسید قسط نخست
                     Text(
                         text = "موعد سررسید قسط نخست:",
@@ -719,36 +757,40 @@ fun InstallmentsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val initial = Calendar.getInstance().apply { timeInMillis = selectedDueDate }
+                                DatePickerDialog(
+                                    context,
+                                    { _, year, month, day ->
+                                        selectedDueDate = Calendar.getInstance().apply {
+                                            set(year, month, day, 12, 0, 0)
+                                            set(Calendar.MILLISECOND, 0)
+                                        }.timeInMillis
+                                    },
+                                    initial.get(Calendar.YEAR),
+                                    initial.get(Calendar.MONTH),
+                                    initial.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            }
                     ) {
-                        listOf(
-                            0 to "امروز",
-                            5 to "۵ روز بعد",
-                            15 to "۱۵ روز بعد",
-                            30 to "۱ ماه بعد"
-                        ).forEach { (days, label) ->
-                            val isSelected = selectedDueDaysAhead == days
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { selectedDueDaysAhead = days }
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(vertical = 7.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        ),
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("انتخاب از تقویم", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    JalaliCalendar.formatDate(selectedDueDate, isShamsi = isShamsi),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                )
                             }
                         }
                     }
@@ -798,11 +840,10 @@ fun InstallmentsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val instAmt = installmentAmountInput.toLongOrNull() ?: 0L
+                        val totalAmt = totalAmountInput.toLongOrNull() ?: 0L
                         val totalInst = totalCountInput.toIntOrNull() ?: 12
-                        val paidInst = paidCountInput.toIntOrNull() ?: 0
-                        val totalAmt = instAmt * totalInst
-                        val dueDate = System.currentTimeMillis() + (selectedDueDaysAhead * 24L * 3600 * 1000)
+                        val paidInst = (paidCountInput.toIntOrNull() ?: 0).coerceIn(0, totalInst)
+                        val instAmt = InstallmentScheduleHelper.installmentAmount(totalAmt, totalInst)
 
                         if (title.isNotBlank() && instAmt > 0 && totalInst > 0) {
                             onAddInstallment(
@@ -811,14 +852,14 @@ fun InstallmentsScreen(
                                 totalInst,
                                 paidInst,
                                 instAmt,
-                                dueDate,
+                                selectedDueDate,
                                 selectedAccId,
                                 note
                             )
                             showAddDialog = false
                         }
                     },
-                    enabled = title.isNotBlank() && (installmentAmountInput.toLongOrNull() ?: 0L) > 0
+                    enabled = title.isNotBlank() && totalAmount > 0L && totalCount > 0
                 ) {
                     Text("ایجاد قسط و ساخت تسک‌ها")
                 }
@@ -1011,7 +1052,11 @@ private fun InstallmentTasksChecklist(
                         // Amount & Status Badge
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = CurrencyFormatter.format(installment.installmentAmount, currency, digitFormat),
+                                text = CurrencyFormatter.format(
+                                    InstallmentScheduleHelper.amountFor(installment, item.index),
+                                    currency,
+                                    digitFormat
+                                ),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     textDecoration = if (item.isPaid) TextDecoration.LineThrough else TextDecoration.None

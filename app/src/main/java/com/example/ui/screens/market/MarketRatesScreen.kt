@@ -119,6 +119,7 @@ fun MarketRatesScreen(
     )
 
     val lastUpdateStr = remember(lastRefreshTime, isShamsi) {
+        if (lastRefreshTime == 0L) return@remember "هنوز دادهٔ زنده دریافت نشده"
         val date = JalaliCalendar.formatDate(lastRefreshTime, isShamsi = isShamsi)
         val cal = java.util.Calendar.getInstance()
         cal.timeInMillis = lastRefreshTime
@@ -274,7 +275,7 @@ fun MarketRatesScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "موردی یافت نشد",
+                                text = if (isRefreshing) "در حال دریافت دادهٔ زنده…" else "دادهٔ زنده‌ای برای این بخش در دسترس نیست",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -404,13 +405,14 @@ fun MarketGridCard(
 
             // Price in Toman
             Text(
-                text = CurrencyFormatter.format(item.priceToman, currency, digitFormat),
+                text = if (item.priceToman > 0) CurrencyFormatter.format(item.priceToman, currency, digitFormat)
+                else item.priceUsd?.let { "$${DecimalFormat("#,##0.##").format(it)}" } ?: "ناموجود",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
             // Optional USD Price (for Crypto or Ounce)
-            if (item.priceUsd != null && item.priceUsd > 0) {
+            if (item.priceToman > 0 && item.priceUsd != null && item.priceUsd > 0) {
                 Spacer(modifier = Modifier.height(2.dp))
                 val df = DecimalFormat("#,##0.##")
                 Text(
@@ -467,7 +469,12 @@ fun MarketDetailDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = CurrencyFormatter.format(item.priceToman, currency, digitFormat),
+                            text = if (item.priceToman > 0) {
+                                CurrencyFormatter.format(item.priceToman, currency, digitFormat)
+                            } else {
+                                item.priceUsd?.let { "$${DecimalFormat("#,##0.##").format(it)}" }
+                                    ?: "ناموجود"
+                            },
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -476,6 +483,14 @@ fun MarketDetailDialog(
                                 text = "معادل: $${DecimalFormat("#,##0.##").format(item.priceUsd)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (item.source.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "منبع زنده: ${item.source}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
