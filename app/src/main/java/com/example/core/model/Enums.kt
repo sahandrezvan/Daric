@@ -38,17 +38,40 @@ enum class DebtType(val titleFa: String, val titleEn: String) {
 }
 
 enum class AppThemeMode(val titleFa: String, val titleEn: String) {
-    SYSTEM("پیرو سیستم", "System"),
+    SYSTEM("رنگ‌بندی + حالت سیستم", "Palette + System mode"),
     LIGHT("روشن", "Light"),
-    DARK("تاریک (AMOLED)", "Dark")
+    DARK("تاریک", "Dark")
 }
 
+/**
+ * Curated visual themes. Enum names stay stable for Room.
+ * Only [primaryChoices] are offered in Settings; legacy values remap.
+ */
 enum class AccentColorChoice(val titleFa: String, val titleEn: String, val colorHex: Long) {
-    EMERALD("سبز زمردی مینیمال", "Emerald Green", 0xFF00A86B),
-    SAPPHIRE("آبی لاجوردی مینیمال", "Royal Sapphire", 0xFF2563EB),
-    AMBER("کهربایی گرم مدرن", "Warm Amber", 0xFFF59E0B),
-    RUBY("یاقوتی سرخ مدرن", "Modern Ruby", 0xFFE11D48),
-    VIOLET("بنفش نئوکلاسیک", "Neo Violet", 0xFF8B5CF6)
+    EMERALD("اوبسیدین", "Obsidian", 0xFF3DCF9A),
+    SAPPHIRE("نیمه‌شب", "Midnight", 0xFF6B9FD4),
+    AMBER("شن", "Sand", 0xFF8B7355), // legacy → remaps to Pearl
+    RUBY("مروارید", "Pearl", 0xFF2C2C2A),
+    VIOLET("نوردیک", "Nordic", 0xFF4A6278), // legacy → remaps to Midnight
+    GRAPHITE("گرافیت", "Graphite", 0xFF4DB6A0), // legacy → remaps to Obsidian
+    MONO("مونو", "Mono", 0xFF111111);
+
+    companion object {
+        /** The four themes shown in Settings. */
+        val primaryChoices: List<AccentColorChoice> = listOf(
+            EMERALD,  // Obsidian (default)
+            RUBY,     // Pearl
+            SAPPHIRE, // Midnight
+            MONO
+        )
+
+        fun normalize(choice: AccentColorChoice): AccentColorChoice = when (choice) {
+            AMBER -> RUBY
+            VIOLET -> SAPPHIRE
+            GRAPHITE -> EMERALD
+            else -> choice
+        }
+    }
 }
 
 enum class AppLanguage(val code: String, val titleFa: String, val titleEn: String) {

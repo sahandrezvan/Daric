@@ -25,7 +25,7 @@ class MainActivity : FragmentActivity() {
 
             DaricTheme(
                 themeMode = settings.themeMode,
-                accentColor = settings.accentColor,
+                accentColor = com.example.core.model.AccentColorChoice.normalize(settings.accentColor),
                 language = settings.language
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {

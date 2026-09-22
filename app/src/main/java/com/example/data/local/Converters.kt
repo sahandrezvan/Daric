@@ -79,7 +79,7 @@ class Converters {
 
     @TypeConverter
     fun toAccentColor(value: String): AccentColorChoice = try {
-        AccentColorChoice.valueOf(value)
+        AccentColorChoice.normalize(AccentColorChoice.valueOf(value))
     } catch (e: Exception) {
         AccentColorChoice.EMERALD
     }

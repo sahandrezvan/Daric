@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.migration.Migration
 import com.example.core.model.AccountType
 import com.example.core.model.TransactionType
 import com.example.data.local.dao.FinanceDao
@@ -32,7 +33,7 @@ import kotlinx.coroutines.launch
         DebtEntity::class,
         UserSettingsEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -51,11 +52,19 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "daric_finance_database"
                 )
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_2_3)
                     .addCallback(DatabaseCallback(scope))
                     .build()
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE user_settings ADD COLUMN isCompactMode INTEGER NOT NULL DEFAULT 0"
+                )
             }
         }
 

@@ -65,11 +65,7 @@ import com.example.core.model.AppThemeMode
 import com.example.core.model.CalendarType
 import com.example.core.model.DigitFormat
 import com.example.data.local.entities.UserSettingsEntity
-import com.example.ui.theme.AccentAmber
-import com.example.ui.theme.AccentEmerald
-import com.example.ui.theme.AccentRuby
-import com.example.ui.theme.AccentSapphire
-import com.example.ui.theme.AccentViolet
+import com.example.ui.theme.ThemeStyleCatalog
 
 @Composable
 fun SettingsScreen(
@@ -83,6 +79,7 @@ fun SettingsScreen(
     onUpdateUserName: (String) -> Unit,
     onUpdatePin: (String, Boolean) -> Unit,
     onUpdateBiometric: (Boolean) -> Unit,
+    onUpdateCompactMode: (Boolean) -> Unit = {},
     onResetAllData: () -> Unit = {},
     onNavigateToBackup: (() -> Unit)? = null,
     onBack: () -> Unit,
@@ -127,8 +124,13 @@ fun SettingsScreen(
             // Profile / User Name
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { showNameDialog = true }
@@ -149,129 +151,193 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = settings.userName,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
 
-            // Theme Mode
+            // Appearance: mode + curated themes
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.DarkMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(
+                                imageVector = Icons.Default.DarkMode,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "حالت تم و رنگ‌بندی",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                text = "ظاهر",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "حالت نمایش را جدا از رنگ‌بندی تم انتخاب کنید",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         Spacer(modifier = Modifier.height(14.dp))
+
+                        // Live preview sample
+                        AppearanceLivePreview(
+                            currency = settings.currency
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             listOf(
-                                AppThemeMode.DARK to "تیره (Dark)",
-                                AppThemeMode.LIGHT to "روشن (Light)",
-                                AppThemeMode.SYSTEM to "سیستم (System)"
+                                AppThemeMode.DARK to "تاریک",
+                                AppThemeMode.LIGHT to "روشن",
+                                AppThemeMode.SYSTEM to "سیستم"
                             ).forEach { (mode, title) ->
                                 val isSelected = settings.themeMode == mode
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-                                    ),
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .clickable { onUpdateTheme(mode) }
                                 ) {
-                                    Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 11.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         Text(
                                             text = title,
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
                                             ),
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            color = if (isSelected) {
+                                                MaterialTheme.colorScheme.onPrimary
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurface
+                                            }
                                         )
                                     }
                                 }
                             }
                         }
-                    }
-                }
-            }
 
-            // Accent Color
-            item {
-                Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp)) {
+                        if (settings.themeMode == AppThemeMode.SYSTEM) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "سیستم = رنگ‌بندی انتخابی شما + روشن/تاریک گوشی",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(22.dp))
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.ColorLens, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(
+                                imageVector = Icons.Default.ColorLens,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "رنگ سازمانی و شاخص (Accent Color)",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                text = "تم‌های مینیمال",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "چهار پالت اصلی — پیش‌فرض: اوبسیدین",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         Spacer(modifier = Modifier.height(14.dp))
+
+                        val themes = AccentColorChoice.primaryChoices
+                        val currentAccent = AccentColorChoice.normalize(settings.accentColor)
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            themes.chunked(2).forEach { rowItems ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rowItems.forEach { accent ->
+                                        val def = ThemeStyleCatalog[accent]
+                                        val isSelected = currentAccent == accent
+                                        ThemePreviewChip(
+                                            title = accent.titleFa,
+                                            subtitle = accent.titleEn,
+                                            previewBg = def?.previewBg ?: Color.Black,
+                                            previewPrimary = def?.previewPrimary ?: Color.White,
+                                            isSelected = isSelected,
+                                            onClick = { onUpdateAccent(accent) },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    if (rowItems.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            listOf(
-                                AccentColorChoice.EMERALD to ("زمردی" to AccentEmerald),
-                                AccentColorChoice.SAPPHIRE to ("لاجوردی" to AccentSapphire),
-                                AccentColorChoice.AMBER to ("کهربایی" to AccentAmber),
-                                AccentColorChoice.RUBY to ("یاقوتی" to AccentRuby),
-                                AccentColorChoice.VIOLET to ("بنفش" to AccentViolet)
-                            ).forEach { (accent, pair) ->
-                                val (name, color) = pair
-                                val isSelected = settings.accentColor == accent
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier.clickable { onUpdateAccent(accent) }
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(color)
-                                            .then(
-                                                if (isSelected) Modifier.padding(3.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface)
-                                                else Modifier
-                                            )
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = name,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        ),
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "حالت فشرده داشبورد",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "فاصله کمتر و میانبرهای جمع‌وجورتر",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
+                            Switch(
+                                checked = settings.isCompactMode,
+                                onCheckedChange = onUpdateCompactMode
+                            )
                         }
                     }
                 }
@@ -280,8 +346,13 @@ fun SettingsScreen(
             // Localization: Calendar, Digits, Currency
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -308,7 +379,10 @@ fun SettingsScreen(
                                         containerColor = if (settings.calendarType == CalendarType.SHAMSI) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
-                                    Text("شمسی", color = if (settings.calendarType == CalendarType.SHAMSI) Color.White else MaterialTheme.colorScheme.onSurface)
+                                    Text(
+                                        "شمسی",
+                                        color = if (settings.calendarType == CalendarType.SHAMSI) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                                 Button(
                                     onClick = { onUpdateCalendar(CalendarType.GREGORIAN) },
@@ -317,7 +391,10 @@ fun SettingsScreen(
                                         containerColor = if (settings.calendarType == CalendarType.GREGORIAN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
-                                    Text("میلادی", color = if (settings.calendarType == CalendarType.GREGORIAN) Color.White else MaterialTheme.colorScheme.onSurface)
+                                    Text(
+                                        "میلادی",
+                                        color = if (settings.calendarType == CalendarType.GREGORIAN) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             }
                         }
@@ -345,7 +422,10 @@ fun SettingsScreen(
                                         containerColor = if (settings.digitFormat == DigitFormat.PERSIAN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
-                                    Text("۱۲۳۴", color = if (settings.digitFormat == DigitFormat.PERSIAN) Color.White else MaterialTheme.colorScheme.onSurface)
+                                    Text(
+                                        "۱۲۳۴",
+                                        color = if (settings.digitFormat == DigitFormat.PERSIAN) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                                 Button(
                                     onClick = { onUpdateDigitFormat(DigitFormat.ENGLISH) },
@@ -354,7 +434,10 @@ fun SettingsScreen(
                                         containerColor = if (settings.digitFormat == DigitFormat.ENGLISH) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 ) {
-                                    Text("1234", color = if (settings.digitFormat == DigitFormat.ENGLISH) Color.White else MaterialTheme.colorScheme.onSurface)
+                                    Text(
+                                        "1234",
+                                        color = if (settings.digitFormat == DigitFormat.ENGLISH) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             }
                         }
@@ -389,8 +472,13 @@ fun SettingsScreen(
             // Security: PIN & Biometrics
             item {
                 Card(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -512,6 +600,26 @@ fun SettingsScreen(
                             Text("پاکسازی تمام داده‌های دمو و تستی برای انتشار")
                         }
                     }
+                }
+            }
+
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "داریک ${com.example.BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "نسخه انتشار ${com.example.BuildConfig.VERSION_CODE}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
                 }
             }
 
@@ -661,5 +769,149 @@ fun SettingsScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun AppearanceLivePreview(
+    currency: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.background,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+        ),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = "پیش‌نمایش زنده",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "دارایی خالص",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "۱۲٬۴۵۰٬۰۰۰ $currency",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "خرید روزانه",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "کیف پول نقدی",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = "− ۱۸۵٬۰۰۰",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemePreviewChip(
+    title: String,
+    subtitle: String,
+    previewBg: Color,
+    previewPrimary: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+        ),
+        modifier = modifier.clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(previewBg)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(previewPrimary)
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

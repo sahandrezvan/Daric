@@ -186,6 +186,9 @@ interface FinanceDao {
     @Query("DELETE FROM accounts")
     suspend fun clearAllAccounts()
 
+    @Query("DELETE FROM categories")
+    suspend fun clearAllCategories()
+
     @Query("DELETE FROM budgets")
     suspend fun clearAllBudgets()
 

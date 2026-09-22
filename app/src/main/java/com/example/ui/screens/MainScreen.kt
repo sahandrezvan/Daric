@@ -14,7 +14,11 @@ import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.outlined.CurrencyExchange
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -265,6 +269,7 @@ fun MainScreen(
                 onUpdateUserName = { viewModel.updateUserName(it) },
                 onUpdatePin = { pin, en -> viewModel.updatePin(pin, en) },
                 onUpdateBiometric = { viewModel.updateBiometric(it) },
+                onUpdateCompactMode = { viewModel.updateCompactMode(it) },
                 onResetAllData = { viewModel.resetAllDataToZero() },
                 onNavigateToBackup = { viewModel.navigateToSubScreen("backup") },
                 onBack = { viewModel.navigateToSubScreen(null) }
@@ -285,44 +290,71 @@ fun MainScreen(
     // 4. Main App Scaffold with Tabs & FAB
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 0.dp
             ) {
                 NavigationBarItem(
                     selected = activeTab == 0,
                     onClick = { viewModel.setTab(0) },
-                    icon = { Icon(imageVector = Icons.Default.Home, contentDescription = "خانه") },
+                    icon = {
+                        Icon(
+                            imageVector = if (activeTab == 0) Icons.Filled.Home else Icons.Outlined.Home,
+                            contentDescription = "خانه"
+                        )
+                    },
                     label = { Text("خانه") },
                     modifier = Modifier.testTag("nav_home")
                 )
                 NavigationBarItem(
                     selected = activeTab == 1,
                     onClick = { viewModel.setTab(1) },
-                    icon = { Icon(imageVector = Icons.Default.Assignment, contentDescription = "اقساط") },
+                    icon = {
+                        Icon(
+                            imageVector = if (activeTab == 1) Icons.Filled.Assignment else Icons.Outlined.Assignment,
+                            contentDescription = "اقساط"
+                        )
+                    },
                     label = { Text("اقساط") },
                     modifier = Modifier.testTag("nav_installments")
                 )
                 NavigationBarItem(
                     selected = activeTab == 2,
                     onClick = { viewModel.setTab(2) },
-                    icon = { Icon(imageVector = Icons.Default.CurrencyExchange, contentDescription = "قیمت‌ها") },
+                    icon = {
+                        Icon(
+                            imageVector = if (activeTab == 2) Icons.Filled.CurrencyExchange else Icons.Outlined.CurrencyExchange,
+                            contentDescription = "قیمت‌ها"
+                        )
+                    },
                     label = { Text("قیمت‌ها") },
                     modifier = Modifier.testTag("nav_market")
                 )
                 NavigationBarItem(
                     selected = activeTab == 3,
                     onClick = { viewModel.setTab(3) },
-                    icon = { Icon(imageVector = Icons.Default.PieChart, contentDescription = "گزارش‌ها") },
+                    icon = {
+                        Icon(
+                            imageVector = if (activeTab == 3) Icons.Filled.PieChart else Icons.Outlined.PieChart,
+                            contentDescription = "گزارش‌ها"
+                        )
+                    },
                     label = { Text("گزارش‌ها") },
                     modifier = Modifier.testTag("nav_reports")
                 )
                 NavigationBarItem(
                     selected = activeTab == 4,
                     onClick = { viewModel.setTab(4) },
-                    icon = { Icon(imageVector = Icons.Default.MoreHoriz, contentDescription = "بیشتر") },
+                    icon = {
+                        Icon(
+                            imageVector = if (activeTab == 4) Icons.Filled.MoreHoriz else Icons.Outlined.MoreHoriz,
+                            contentDescription = "بیشتر"
+                        )
+                    },
                     label = { Text("بیشتر") },
                     modifier = Modifier.testTag("nav_more")
                 )
@@ -334,15 +366,18 @@ fun MainScreen(
                 shape = CircleShape,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(6.dp),
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 2.dp,
+                    pressedElevation = 4.dp
+                ),
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(52.dp)
                     .testTag("global_add_fab")
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "ثبت تراکنش",
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
