@@ -17,7 +17,7 @@ object PinSecurity {
     private const val KEY_BITS = 256
     private const val SALT_BYTES = 16
 
-    fun isEncoded(value: String): Boolean = value.startsWith("$PREFIX$")
+    fun isEncoded(value: String): Boolean = value.startsWith("$PREFIX:")
 
     fun hash(pin: String): String {
         require(pin.length >= 4) { "PIN is too short" }
@@ -27,7 +27,7 @@ object PinSecurity {
             PREFIX,
             Base64.encodeToString(salt, Base64.NO_WRAP),
             Base64.encodeToString(derived, Base64.NO_WRAP)
-        ).joinToString("$")
+        ).joinToString(":")
     }
 
     fun verify(pin: String, stored: String): Boolean {
@@ -38,7 +38,7 @@ object PinSecurity {
             )
         }
 
-        val parts = stored.split("$")
+        val parts = stored.split(":")
         if (parts.size != 3 || parts[0] != PREFIX) return false
 
         return runCatching {
