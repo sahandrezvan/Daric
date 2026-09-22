@@ -1,0 +1,6 @@
+{
+  "name": "Daric",
+  "description": "داریک (Daric Finance) - اپلیکیشن مدیریت مالی و حسابداری شخصی ساده، سریع و آفلاین",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
