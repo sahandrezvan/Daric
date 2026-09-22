@@ -13,6 +13,7 @@ import com.example.core.model.DigitFormat
 import com.example.core.model.InstallmentStatus
 import com.example.core.model.RecurringInterval
 import com.example.core.model.TransactionType
+import com.example.core.util.PinSecurity
 import com.example.data.local.AppDatabase
 import com.example.data.local.entities.AccountEntity
 import com.example.data.local.entities.BudgetEntity
@@ -167,6 +168,9 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
             settings.collect { s ->
                 if (s.isPinEnabled && s.pinCode.isNotBlank() && s.isOnboardingCompleted) {
                     _isUnlocked.value = false
+                    if (!PinSecurity.isEncoded(s.pinCode)) {
+                        repository.updateSettings(s.copy(pinCode = PinSecurity.hash(s.pinCode)))
+                    }
                 }
             }
         }
@@ -191,7 +195,7 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun unlockWithPin(pin: String): Boolean {
-        if (settings.value.pinCode == pin) {
+        if (PinSecurity.verify(pin, settings.value.pinCode)) {
             _isUnlocked.value = true
             return true
         }
@@ -207,7 +211,7 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
             val updated = settings.value.copy(
                 isOnboardingCompleted = true,
                 isPinEnabled = !pin.isNullOrBlank(),
-                pinCode = pin ?: ""
+                pinCode = if (pin.isNullOrBlank()) "" else PinSecurity.hash(pin)
             )
             repository.updateSettings(updated)
             _isUnlocked.value = true
@@ -497,7 +501,10 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updatePin(pin: String, enabled: Boolean) {
         viewModelScope.launch {
-            repository.updateSettings(settings.value.copy(pinCode = pin, isPinEnabled = enabled))
+            val storedPin = if (enabled && pin.isNotBlank()) PinSecurity.hash(pin) else ""
+            repository.updateSettings(
+                settings.value.copy(pinCode = storedPin, isPinEnabled = enabled)
+            )
         }
     }
 
