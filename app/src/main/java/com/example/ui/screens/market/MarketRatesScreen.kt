@@ -472,7 +472,7 @@ fun MarketDetailDialog(
                             text = if (item.priceToman > 0) {
                                 CurrencyFormatter.format(item.priceToman, currency, digitFormat)
                             } else {
-                                item.priceUsd?.let { "$${DecimalFormat(\"#,##0.##\").format(it)}" }
+                                item.priceUsd?.let { "$${DecimalFormat("#,##0.##").format(it)}" }
                                     ?: "ناموجود"
                             },
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
