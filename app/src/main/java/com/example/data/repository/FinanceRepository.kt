@@ -474,11 +474,11 @@ class FinanceRepository(private val db: AppDatabase) {
                     existingCategories.forEach { categoryIdMap[it.id] = it.id }
                 }
 
-                fun mappedAccount(oldId: Long): Long =
+                suspend fun mappedAccount(oldId: Long): Long =
                     accountIdMap[oldId] ?: dao.getAllAccountsSnapshot().firstOrNull()?.id
                     ?: error("Backup contains financial records but no account")
 
-                fun mappedCategory(oldId: Long, type: TransactionType): Long =
+                suspend fun mappedCategory(oldId: Long, type: TransactionType): Long =
                     categoryIdMap[oldId]
                         ?: dao.getAllCategoriesSnapshot().firstOrNull { it.type == type }?.id
                         ?: dao.getAllCategoriesSnapshot().firstOrNull()?.id
