@@ -40,7 +40,7 @@ import java.util.Calendar
 class DaricViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getDatabase(application, viewModelScope)
-    private val repository = FinanceRepository(db.financeDao())
+    private val repository = FinanceRepository(db)
     private val marketRepository = MarketRepository()
 
     val marketItems: StateFlow<List<MarketItem>> = marketRepository.marketItems
