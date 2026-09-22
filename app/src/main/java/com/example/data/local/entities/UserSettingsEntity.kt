@@ -19,6 +19,7 @@ data class UserSettingsEntity(
     val calendarType: CalendarType = CalendarType.SHAMSI,
     val themeMode: AppThemeMode = AppThemeMode.DARK,
     val accentColor: AccentColorChoice = AccentColorChoice.EMERALD,
+    val isCompactMode: Boolean = false,
     val isPinEnabled: Boolean = false,
     val pinCode: String = "",
     val isBiometricEnabled: Boolean = false,

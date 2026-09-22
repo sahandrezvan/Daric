@@ -92,6 +92,13 @@ fun DashboardScreen(
     val accountMap = accounts.associateBy { it.id }
     val isShamsi = userSettings.calendarType == com.example.core.model.CalendarType.SHAMSI
     val todayFormatted = JalaliCalendar.formatDate(System.currentTimeMillis(), isShamsi = isShamsi)
+    val compact = userSettings.isCompactMode
+    val sectionGap = if (compact) 10.dp else 20.dp
+    val contentPad = if (compact) {
+        PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+    } else {
+        PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+    }
 
     // Filter installments that are due today, overdue, or due within 3 days
     val activeInstallments = installments.filter { it.paidInstallments < it.totalInstallments }
@@ -105,37 +112,39 @@ fun DashboardScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        contentPadding = contentPad,
+        verticalArrangement = Arrangement.spacedBy(sectionGap)
     ) {
         // 1. Top Bar: Greeting & Actions
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = if (compact) 2.dp else 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
-                        text = "سلام، ${userSettings.userName}",
+                        text = if (compact) userSettings.userName else "سلام، ${userSettings.userName}",
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = todayFormatted,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (!compact) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = todayFormatted,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = onSearchClick,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(if (compact) 36.dp else 40.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                             .testTag("dashboard_search_button")
@@ -153,7 +162,7 @@ fun DashboardScreen(
                     IconButton(
                         onClick = onCalendarClick,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(if (compact) 36.dp else 40.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                             .testTag("dashboard_calendar_button")
@@ -179,13 +188,15 @@ fun DashboardScreen(
             )
         }
 
-        // Quick Actions Grid (قیمت بازار، اقساط و وام، اهداف و قلک)
-        item {
-            QuickActionsGrid(
-                onMarketRatesClick = onMarketRatesClick,
-                onInstallmentsClick = onInstallmentsClick,
-                onGoalsClick = onGoalsClick
-            )
+        // Quick Actions — hidden in compact (available via bottom tabs)
+        if (!compact) {
+            item {
+                QuickActionsGrid(
+                    onMarketRatesClick = onMarketRatesClick,
+                    onInstallmentsClick = onInstallmentsClick,
+                    onGoalsClick = onGoalsClick
+                )
+            }
         }
 
         // 3. Installments Due Alerts (هر وقت رسید نمایش بده)
@@ -358,16 +369,26 @@ fun DashboardScreen(
             }
         }
 
-        // 4. Financial Metrics Grid (2x2 Grid: درآمد، هزینه، پس‌انداز، اقساط)
+        // 4. Financial Metrics Grid (2x2) — compact uses single summary row
         item {
-            FinancialMetricsGrid(
-                income = monthlyIncome,
-                expense = monthlyExpense,
-                savings = monthlySavings,
-                installmentsCommitment = totalInstallmentMonthly,
-                currency = userSettings.currency,
-                digitFormat = userSettings.digitFormat
-            )
+            if (compact) {
+                MonthlySummaryCard(
+                    income = monthlyIncome,
+                    expense = monthlyExpense,
+                    savings = monthlySavings,
+                    currency = userSettings.currency,
+                    digitFormat = userSettings.digitFormat
+                )
+            } else {
+                FinancialMetricsGrid(
+                    income = monthlyIncome,
+                    expense = monthlyExpense,
+                    savings = monthlySavings,
+                    installmentsCommitment = totalInstallmentMonthly,
+                    currency = userSettings.currency,
+                    digitFormat = userSettings.digitFormat
+                )
+            }
         }
 
         // 5. Accounts Header & Carousel

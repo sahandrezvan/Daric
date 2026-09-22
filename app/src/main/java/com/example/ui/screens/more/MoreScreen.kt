@@ -63,7 +63,7 @@ fun MoreScreen(
         MoreMenuItem("تقویم مالی", "مخارج و درآمد روزانه", Icons.Default.CalendarMonth, "calendar"),
         MoreMenuItem("دسته‌بندی‌ها", "انواع درآمد و هزینه", Icons.Default.Category, "categories"),
         MoreMenuItem("پشتیبان‌گیری", "نسخه محلی و گوگل درایو", Icons.Default.CloudSync, "backup"),
-        MoreMenuItem("تنظیمات", "تم، ظاهر، تقویم و امنیت", Icons.Default.Settings, "settings"),
+        MoreMenuItem("تنظیمات", "تم، فشرده، تقویم و امنیت", Icons.Default.Settings, "settings"),
         MoreMenuItem("حریم خصوصی", "آفلاین، محلی و امن", Icons.Default.Security, "privacy")
     )
 

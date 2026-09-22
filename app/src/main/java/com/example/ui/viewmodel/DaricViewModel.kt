@@ -453,7 +453,15 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateAccent(accent: AccentColorChoice) {
         viewModelScope.launch {
-            repository.updateSettings(settings.value.copy(accentColor = accent))
+            repository.updateSettings(
+                settings.value.copy(accentColor = AccentColorChoice.normalize(accent))
+            )
+        }
+    }
+
+    fun updateCompactMode(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.updateSettings(settings.value.copy(isCompactMode = enabled))
         }
     }
 

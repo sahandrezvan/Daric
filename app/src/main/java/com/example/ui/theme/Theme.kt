@@ -14,14 +14,16 @@ import com.example.core.model.AppLanguage
 import com.example.core.model.AppThemeMode
 
 fun getPrimaryColor(accent: AccentColorChoice): Color {
-    return ThemeStyleCatalog[accent]?.previewPrimary ?: AccentEmerald
+    val normalized = AccentColorChoice.normalize(accent)
+    return ThemeStyleCatalog[normalized]?.previewPrimary ?: AccentEmerald
 }
 
 fun resolveThemeSurfaces(
     accent: AccentColorChoice,
     isDark: Boolean
 ): ThemeSurfaces {
-    val def = ThemeStyleCatalog[accent] ?: ThemeStyleCatalog.getValue(AccentColorChoice.EMERALD)
+    val normalized = AccentColorChoice.normalize(accent)
+    val def = ThemeStyleCatalog[normalized] ?: ThemeStyleCatalog.getValue(AccentColorChoice.EMERALD)
     return if (isDark) def.dark else def.light
 }
 
