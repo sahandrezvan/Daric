@@ -1,10 +1,16 @@
-# Release build (Daric 1.2.0)
+# Release build (Daric 1.3.0)
+
+## Version
+
+- versionName: `1.3.0`
+- versionCode: `4`
+- applicationId: `ir.sahand.daric`
 
 ## Build locally
 
 ```bash
 export ANDROID_HOME=...
-export KEYSTORE_PATH=/path/to/my-upload-key.jks
+export KEYSTORE_PATH=/path/to/upload.jks
 export STORE_PASSWORD=...
 export KEY_PASSWORD=...
 export KEY_ALIAS=upload
@@ -12,11 +18,6 @@ export KEY_ALIAS=upload
 ```
 
 Outputs:
+
 - `app/build/outputs/apk/release/app-release.apk`
 - `app/build/outputs/bundle/release/app-release.aab`
-
-## Version
-
-- versionName: `1.2.0`
-- versionCode: `3`
-- applicationId: `ir.sahand.daric`
