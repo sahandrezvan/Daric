@@ -63,6 +63,9 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             marketRepository.refreshRates()
         }
+        viewModelScope.launch {
+            weatherRepository.refresh()
+        }
     }
 
     val settings: StateFlow<UserSettingsEntity> = repository.userSettings
