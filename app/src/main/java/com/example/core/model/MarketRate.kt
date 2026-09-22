@@ -17,5 +17,6 @@ data class MarketItem(
     val change24h: Double = 0.0,
     val highToman: Long = 0L,
     val lowToman: Long = 0L,
-    val lastUpdated: Long = System.currentTimeMillis()
+    val lastUpdated: Long = 0L,
+    val source: String = ""
 )

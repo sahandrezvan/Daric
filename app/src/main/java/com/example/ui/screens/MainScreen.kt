@@ -88,6 +88,7 @@ fun MainScreen(
     val marketItems by viewModel.marketItems.collectAsState()
     val isMarketRefreshing by viewModel.isMarketRefreshing.collectAsState()
     val lastMarketRefreshTime by viewModel.lastMarketRefreshTime.collectAsState()
+    val weather by viewModel.weather.collectAsState()
 
     val netWorth by viewModel.netWorth.collectAsState()
     val monthlyIncome by viewModel.monthlyIncome.collectAsState()
@@ -401,6 +402,7 @@ fun MainScreen(
                         netWorth = netWorth,
                         monthlyIncome = monthlyIncome,
                         monthlyExpense = monthlyExpense,
+                        weather = weather,
                         onAccountClick = { acc -> viewModel.selectAccountDetail(acc) },
                         onAddAccountClick = { viewModel.navigateToSubScreen("accounts") },
                         onTransactionClick = {},

@@ -26,6 +26,8 @@ import com.example.data.local.entities.TransactionEntity
 import com.example.data.local.entities.UserSettingsEntity
 import com.example.data.repository.FinanceRepository
 import com.example.data.repository.MarketRepository
+import com.example.data.repository.WeatherRepository
+import com.example.core.model.WeatherInfo
 import com.example.ui.components.ChartSlice
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,15 +45,18 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application, viewModelScope)
     private val repository = FinanceRepository(db)
     private val marketRepository = MarketRepository()
+    private val weatherRepository = WeatherRepository()
 
     val marketItems: StateFlow<List<MarketItem>> = marketRepository.marketItems
     val isMarketRefreshing: StateFlow<Boolean> = marketRepository.isRefreshing
     val lastMarketRefreshTime: StateFlow<Long> = marketRepository.lastRefreshTime
+    val weather: StateFlow<WeatherInfo> = weatherRepository.weather
 
     fun refreshMarketRates() {
         viewModelScope.launch {
             marketRepository.refreshRates()
         }
+        viewModelScope.launch { weatherRepository.refresh() }
     }
 
     init {

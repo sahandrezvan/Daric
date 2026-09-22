@@ -19,20 +19,21 @@ class MarketRepository {
         .readTimeout(6, TimeUnit.SECONDS)
         .build()
 
-    private val _marketItems = MutableStateFlow<List<MarketItem>>(initialMarketData())
+    // Never seed the UI with invented prices. Items appear only after a live response.
+    private val _marketItems = MutableStateFlow<List<MarketItem>>(emptyList())
     val marketItems: StateFlow<List<MarketItem>> = _marketItems.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
-    private val _lastRefreshTime = MutableStateFlow(System.currentTimeMillis())
+    private val _lastRefreshTime = MutableStateFlow(0L)
     val lastRefreshTime: StateFlow<Long> = _lastRefreshTime.asStateFlow()
 
     suspend fun refreshRates(): Result<Unit> = withContext(Dispatchers.IO) {
         _isRefreshing.value = true
         try {
             val currentList = _marketItems.value.toMutableList()
-            var usdRate = currentList.find { it.id == "usd" }?.priceToman ?: 63000L
+            val usdRate = 0L
 
             // 1. Fetch live cryptocurrency prices from CoinGecko free public API
             try {
@@ -48,33 +49,47 @@ class MarketRepository {
                         if (!bodyString.isNullOrBlank()) {
                             val json = JSONObject(bodyString)
                             val mapping = mapOf(
-                                "bitcoin" to "btc",
-                                "ethereum" to "eth",
-                                "tether" to "usdt",
-                                "solana" to "sol",
-                                "binancecoin" to "bnb",
-                                "ripple" to "xrp",
-                                "the-open-network" to "ton",
-                                "cardano" to "ada",
-                                "dogecoin" to "doge",
-                                "tron" to "trx"
+                                "bitcoin" to Triple("btc", "بیت‌کوین", "Bitcoin"),
+                                "ethereum" to Triple("eth", "اتریوم", "Ethereum"),
+                                "tether" to Triple("usdt", "تتر", "Tether"),
+                                "solana" to Triple("sol", "سولانا", "Solana"),
+                                "binancecoin" to Triple("bnb", "بایننس‌کوین", "BNB"),
+                                "ripple" to Triple("xrp", "ریپل", "XRP"),
+                                "the-open-network" to Triple("ton", "تون‌کوین", "Toncoin"),
+                                "cardano" to Triple("ada", "کاردانو", "Cardano"),
+                                "dogecoin" to Triple("doge", "دوج‌کوین", "Dogecoin"),
+                                "tron" to Triple("trx", "ترون", "TRON")
                             )
 
-                            mapping.forEach { (geckoId, itemId) ->
+                            mapping.forEach { (geckoId, meta) ->
                                 if (json.has(geckoId)) {
                                     val coinObj = json.getJSONObject(geckoId)
                                     val priceUsd = coinObj.optDouble("usd", 0.0)
                                     val change = coinObj.optDouble("usd_24h_change", 0.0)
-                                    val priceToman = (priceUsd * usdRate).toLong()
+                                    val priceToman = if (usdRate > 0) (priceUsd * usdRate).toLong() else 0L
 
-                                    val index = currentList.indexOfFirst { it.id == itemId }
+                                    val index = currentList.indexOfFirst { it.id == meta.first }
                                     if (index >= 0) {
                                         val existing = currentList[index]
                                         currentList[index] = existing.copy(
                                             priceToman = priceToman,
                                             priceUsd = priceUsd,
                                             change24h = Math.round(change * 100.0) / 100.0,
-                                            lastUpdated = System.currentTimeMillis()
+                                            lastUpdated = System.currentTimeMillis(),
+                                            source = "CoinGecko"
+                                        )
+                                    } else {
+                                        currentList += MarketItem(
+                                            id = meta.first,
+                                            nameFa = meta.second,
+                                            nameEn = meta.third,
+                                            symbol = meta.first.uppercase(),
+                                            category = MarketCategory.CRYPTO,
+                                            priceToman = priceToman,
+                                            priceUsd = priceUsd,
+                                            change24h = Math.round(change * 100.0) / 100.0,
+                                            lastUpdated = System.currentTimeMillis(),
+                                            source = "CoinGecko"
                                         )
                                     }
                                 }
@@ -87,7 +102,7 @@ class MarketRepository {
             }
 
             _marketItems.value = currentList
-            _lastRefreshTime.value = System.currentTimeMillis()
+            if (currentList.isNotEmpty()) _lastRefreshTime.value = System.currentTimeMillis()
             _isRefreshing.value = false
             Result.success(Unit)
         } catch (e: Exception) {
