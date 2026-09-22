@@ -3,6 +3,8 @@ package com.example.data.repository
 import com.example.core.model.DebtType
 import com.example.core.model.InstallmentStatus
 import com.example.core.model.TransactionType
+import androidx.room.withTransaction
+import com.example.data.local.AppDatabase
 import com.example.data.local.dao.FinanceDao
 import com.example.data.local.entities.AccountEntity
 import com.example.data.local.entities.BudgetEntity
@@ -19,7 +21,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class FinanceRepository(private val dao: FinanceDao) {
+class FinanceRepository(private val db: AppDatabase) {
+    private val dao: FinanceDao = db.financeDao()
 
     val accounts: Flow<List<AccountEntity>> = dao.getActiveAccounts()
     val allAccounts: Flow<List<AccountEntity>> = dao.getAllAccounts()
@@ -36,54 +39,58 @@ class FinanceRepository(private val dao: FinanceDao) {
 
     // --- Transaction Execution with Balance Updating ---
     suspend fun addTransaction(tx: TransactionEntity): Long = withContext(Dispatchers.IO) {
-        val id = dao.insertTransaction(tx)
-        when (tx.type) {
-            TransactionType.EXPENSE -> {
-                dao.adjustAccountBalance(tx.accountId, -tx.amount)
-            }
-            TransactionType.INCOME -> {
-                dao.adjustAccountBalance(tx.accountId, tx.amount)
-            }
-            TransactionType.TRANSFER -> {
-                dao.adjustAccountBalance(tx.accountId, -tx.amount)
-                tx.destinationAccountId?.let { destId ->
-                    dao.adjustAccountBalance(destId, tx.amount)
+        require(tx.amount > 0) { "Transaction amount must be positive" }
+        db.withTransaction {
+            val id = dao.insertTransaction(tx)
+            when (tx.type) {
+                TransactionType.EXPENSE -> dao.adjustAccountBalance(tx.accountId, -tx.amount)
+                TransactionType.INCOME -> dao.adjustAccountBalance(tx.accountId, tx.amount)
+                TransactionType.TRANSFER -> {
+                    val destinationId = requireNotNull(tx.destinationAccountId) {
+                        "Transfer requires a destination account"
+                    }
+                    require(destinationId != tx.accountId) { "Source and destination accounts must differ" }
+                    dao.adjustAccountBalance(tx.accountId, -tx.amount)
+                    dao.adjustAccountBalance(destinationId, tx.amount)
                 }
             }
+            id
         }
-        id
     }
 
     suspend fun softDeleteTransaction(id: Long) = withContext(Dispatchers.IO) {
-        val tx = dao.getTransactionById(id) ?: return@withContext
-        // Reverse balance effect
-        when (tx.type) {
-            TransactionType.EXPENSE -> dao.adjustAccountBalance(tx.accountId, tx.amount)
-            TransactionType.INCOME -> dao.adjustAccountBalance(tx.accountId, -tx.amount)
-            TransactionType.TRANSFER -> {
-                dao.adjustAccountBalance(tx.accountId, tx.amount)
-                tx.destinationAccountId?.let { destId ->
-                    dao.adjustAccountBalance(destId, -tx.amount)
+        db.withTransaction {
+            val tx = dao.getTransactionById(id) ?: return@withTransaction
+            if (tx.isSoftDeleted) return@withTransaction
+            when (tx.type) {
+                TransactionType.EXPENSE -> dao.adjustAccountBalance(tx.accountId, tx.amount)
+                TransactionType.INCOME -> dao.adjustAccountBalance(tx.accountId, -tx.amount)
+                TransactionType.TRANSFER -> {
+                    dao.adjustAccountBalance(tx.accountId, tx.amount)
+                    tx.destinationAccountId?.let { dao.adjustAccountBalance(it, -tx.amount) }
                 }
             }
+            dao.softDeleteTransaction(id)
         }
-        dao.softDeleteTransaction(id)
     }
 
     suspend fun undoDeleteTransaction(id: Long) = withContext(Dispatchers.IO) {
-        val tx = dao.getTransactionById(id) ?: return@withContext
-        // Re-apply balance effect
-        when (tx.type) {
-            TransactionType.EXPENSE -> dao.adjustAccountBalance(tx.accountId, -tx.amount)
-            TransactionType.INCOME -> dao.adjustAccountBalance(tx.accountId, tx.amount)
-            TransactionType.TRANSFER -> {
-                dao.adjustAccountBalance(tx.accountId, -tx.amount)
-                tx.destinationAccountId?.let { destId ->
-                    dao.adjustAccountBalance(destId, tx.amount)
+        db.withTransaction {
+            val tx = dao.getTransactionById(id) ?: return@withTransaction
+            if (!tx.isSoftDeleted) return@withTransaction
+            when (tx.type) {
+                TransactionType.EXPENSE -> dao.adjustAccountBalance(tx.accountId, -tx.amount)
+                TransactionType.INCOME -> dao.adjustAccountBalance(tx.accountId, tx.amount)
+                TransactionType.TRANSFER -> {
+                    val destinationId = requireNotNull(tx.destinationAccountId) {
+                        "Transfer requires a destination account"
+                    }
+                    dao.adjustAccountBalance(tx.accountId, -tx.amount)
+                    dao.adjustAccountBalance(destinationId, tx.amount)
                 }
             }
+            dao.restoreTransaction(id)
         }
-        dao.restoreTransaction(id)
     }
 
     // --- Accounts ---
@@ -149,7 +156,12 @@ class FinanceRepository(private val dao: FinanceDao) {
         if (inst.paidInstallments < inst.totalInstallments) {
             val updatedPaid = inst.paidInstallments + 1
             val isFinished = updatedPaid >= inst.totalInstallments
-            val nextDueDate = if (!isFinished) inst.firstDueDate + (30L * 24 * 3600 * 1000) else inst.firstDueDate
+            val nextDueDate = if (!isFinished) {
+                java.util.Calendar.getInstance().apply {
+                    timeInMillis = inst.firstDueDate
+                    add(java.util.Calendar.MONTH, 1)
+                }.timeInMillis
+            } else inst.firstDueDate
             dao.updateInstallment(
                 inst.copy(
                     paidInstallments = updatedPaid,
@@ -265,7 +277,7 @@ class FinanceRepository(private val dao: FinanceDao) {
     // --- Export / Backup to JSON ---
     suspend fun exportDataAsJson(): String = withContext(Dispatchers.IO) {
         val root = JSONObject()
-        root.put("version", 1)
+        root.put("version", 2)
         root.put("timestamp", System.currentTimeMillis())
 
         val accountsArr = JSONArray()
@@ -279,6 +291,20 @@ class FinanceRepository(private val dao: FinanceDao) {
             accountsArr.put(o)
         }
         root.put("accounts", accountsArr)
+
+        val categoriesArr = JSONArray()
+        dao.getAllCategoriesSnapshot().forEach { category ->
+            val o = JSONObject()
+            o.put("id", category.id)
+            o.put("name", category.name)
+            o.put("nameFa", category.nameFa)
+            o.put("type", category.type.name)
+            o.put("iconName", category.iconName)
+            o.put("colorHex", category.colorHex)
+            o.put("isDefault", category.isDefault)
+            categoriesArr.put(o)
+        }
+        root.put("categories", categoriesArr)
 
         val txArr = JSONArray()
         dao.getAllTransactionsSnapshot().forEach { tx ->
@@ -380,118 +406,201 @@ class FinanceRepository(private val dao: FinanceDao) {
     suspend fun restoreDataFromJson(jsonStr: String, replaceAll: Boolean): Boolean = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject(jsonStr)
-            if (replaceAll) {
-                dao.clearAllTransactions()
-                dao.clearAllAccounts()
-                dao.clearAllBudgets()
-                dao.clearAllGoals()
-                dao.clearAllInstallments()
-                dao.clearAllDebts()
-            }
+            val version = root.optInt("version", 1)
+            require(version in 1..2) { "Unsupported backup version: $version" }
 
-            if (root.has("accounts")) {
-                val accountsArr = root.getJSONArray("accounts")
-                for (i in 0 until accountsArr.length()) {
-                    val o = accountsArr.getJSONObject(i)
-                    val acc = AccountEntity(
-                        name = o.optString("name", "حساب جدید"),
-                        type = try { com.example.core.model.AccountType.valueOf(o.optString("type")) } catch (e: Exception) { com.example.core.model.AccountType.BANK },
-                        initialBalance = o.optLong("balance", 0L),
-                        currentBalance = o.optLong("balance", 0L),
-                        colorHex = o.optLong("color", 0xFF00A86B)
-                    )
-                    dao.insertAccount(acc)
+            db.withTransaction {
+                val existingCategories = dao.getAllCategoriesSnapshot()
+
+                if (replaceAll) {
+                    dao.clearAllTransactions()
+                    dao.clearAllBudgets()
+                    dao.clearAllGoals()
+                    dao.clearAllInstallments()
+                    dao.clearAllDebts()
+                    dao.clearAllAccounts()
+                    if (root.has("categories")) {
+                        dao.clearAllCategories()
+                    }
+                }
+
+                val accountIdMap = mutableMapOf<Long, Long>()
+                if (root.has("accounts")) {
+                    val accountsArr = root.getJSONArray("accounts")
+                    for (i in 0 until accountsArr.length()) {
+                        val o = accountsArr.getJSONObject(i)
+                        val oldId = o.optLong("id", 0L)
+                        val balance = o.optLong("balance", o.optLong("currentBalance", 0L))
+                        val newId = dao.insertAccount(
+                            AccountEntity(
+                                name = o.optString("name", "حساب جدید"),
+                                type = runCatching {
+                                    com.example.core.model.AccountType.valueOf(o.optString("type"))
+                                }.getOrDefault(com.example.core.model.AccountType.BANK),
+                                initialBalance = o.optLong("initialBalance", balance),
+                                currentBalance = balance,
+                                colorHex = o.optLong("color", o.optLong("colorHex", 0xFF00A86B)),
+                                iconName = o.optString("iconName", "account_balance"),
+                                note = o.optString("note", ""),
+                                isArchived = o.optBoolean("isArchived", false),
+                                createdAt = o.optLong("createdAt", System.currentTimeMillis())
+                            )
+                        )
+                        if (oldId > 0) accountIdMap[oldId] = newId
+                    }
+                }
+
+                val categoryIdMap = mutableMapOf<Long, Long>()
+                if (root.has("categories")) {
+                    val categoriesArr = root.getJSONArray("categories")
+                    for (i in 0 until categoriesArr.length()) {
+                        val o = categoriesArr.getJSONObject(i)
+                        val oldId = o.optLong("id", 0L)
+                        val newId = dao.insertCategory(
+                            CategoryEntity(
+                                name = o.optString("name", "Other"),
+                                nameFa = o.optString("nameFa", "سایر"),
+                                type = runCatching {
+                                    TransactionType.valueOf(o.optString("type"))
+                                }.getOrDefault(TransactionType.EXPENSE),
+                                iconName = o.optString("iconName", "more_horiz"),
+                                colorHex = o.optLong("colorHex", 0xFF9E9E9E),
+                                isDefault = o.optBoolean("isDefault", false)
+                            )
+                        )
+                        if (oldId > 0) categoryIdMap[oldId] = newId
+                    }
+                } else {
+                    existingCategories.forEach { categoryIdMap[it.id] = it.id }
+                }
+
+                fun mappedAccount(oldId: Long): Long =
+                    accountIdMap[oldId] ?: dao.getAllAccountsSnapshot().firstOrNull()?.id
+                    ?: error("Backup contains financial records but no account")
+
+                fun mappedCategory(oldId: Long, type: TransactionType): Long =
+                    categoryIdMap[oldId]
+                        ?: dao.getAllCategoriesSnapshot().firstOrNull { it.type == type }?.id
+                        ?: dao.getAllCategoriesSnapshot().firstOrNull()?.id
+                        ?: error("No category available for restored transaction")
+
+                if (root.has("transactions")) {
+                    val txArr = root.getJSONArray("transactions")
+                    for (i in 0 until txArr.length()) {
+                        val o = txArr.getJSONObject(i)
+                        val type = runCatching {
+                            TransactionType.valueOf(o.optString("type"))
+                        }.getOrDefault(TransactionType.EXPENSE)
+                        val amount = o.optLong("amount", 0L)
+                        if (amount <= 0L) continue
+                        val oldAccountId = o.optLong("accountId", 0L)
+                        val oldDestinationId =
+                            if (o.isNull("destinationAccountId")) null else o.optLong("destinationAccountId")
+
+                        dao.insertTransaction(
+                            TransactionEntity(
+                                type = type,
+                                amount = amount,
+                                accountId = mappedAccount(oldAccountId),
+                                destinationAccountId = oldDestinationId?.let { accountIdMap[it] },
+                                categoryId = mappedCategory(o.optLong("categoryId", 0L), type),
+                                description = o.optString("description", ""),
+                                note = o.optString("note", ""),
+                                timestamp = o.optLong("timestamp", System.currentTimeMillis()),
+                                tags = o.optString("tags", ""),
+                                attachmentPath = null,
+                                isRecurring = o.optBoolean("isRecurring", false),
+                                recurringInterval = runCatching {
+                                    com.example.core.model.RecurringInterval.valueOf(
+                                        o.optString("recurringInterval", "NONE")
+                                    )
+                                }.getOrDefault(com.example.core.model.RecurringInterval.NONE),
+                                isSoftDeleted = false,
+                                createdAt = o.optLong("createdAt", System.currentTimeMillis())
+                            )
+                        )
+                    }
+                }
+
+                if (root.has("goals")) {
+                    val goalsArr = root.getJSONArray("goals")
+                    for (i in 0 until goalsArr.length()) {
+                        val o = goalsArr.getJSONObject(i)
+                        dao.insertGoal(
+                            SavingGoalEntity(
+                                title = o.optString("title", ""),
+                                targetAmount = o.optLong("targetAmount", 0L),
+                                currentAmount = o.optLong("currentAmount", 0L),
+                                targetDate = o.optLong("targetDate", System.currentTimeMillis()),
+                                colorHex = o.optLong("colorHex", 0xFF00A86B),
+                                iconName = o.optString("iconName", "flag"),
+                                isCompleted = o.optBoolean("isCompleted", false)
+                            )
+                        )
+                    }
+                }
+
+                if (root.has("debts")) {
+                    val debtsArr = root.getJSONArray("debts")
+                    for (i in 0 until debtsArr.length()) {
+                        val o = debtsArr.getJSONObject(i)
+                        dao.insertDebt(
+                            DebtEntity(
+                                personName = o.optString("personName", ""),
+                                type = runCatching { DebtType.valueOf(o.optString("type")) }
+                                    .getOrDefault(DebtType.CREDITOR),
+                                amount = o.optLong("amount", 0L),
+                                paidAmount = o.optLong("paidAmount", 0L),
+                                dueDate = if (o.isNull("dueDate")) null else o.optLong("dueDate"),
+                                note = o.optString("note", ""),
+                                isSettled = o.optBoolean("isSettled", false),
+                                createdAt = o.optLong("createdAt", System.currentTimeMillis())
+                            )
+                        )
+                    }
+                }
+
+                if (root.has("installments")) {
+                    val instArr = root.getJSONArray("installments")
+                    for (i in 0 until instArr.length()) {
+                        val o = instArr.getJSONObject(i)
+                        dao.insertInstallment(
+                            InstallmentEntity(
+                                title = o.optString("title", ""),
+                                totalAmount = o.optLong("totalAmount", 0L),
+                                totalInstallments = o.optInt("totalInstallments", 1).coerceAtLeast(1),
+                                paidInstallments = o.optInt("paidInstallments", 0).coerceAtLeast(0),
+                                installmentAmount = o.optLong("installmentAmount", 0L),
+                                firstDueDate = o.optLong("firstDueDate", System.currentTimeMillis()),
+                                accountId = mappedAccount(o.optLong("accountId", 0L)),
+                                status = runCatching {
+                                    InstallmentStatus.valueOf(o.optString("status"))
+                                }.getOrDefault(InstallmentStatus.PENDING),
+                                note = o.optString("note", ""),
+                                paidIndicesWithDates = o.optString("paidIndicesWithDates", "")
+                            )
+                        )
+                    }
+                }
+
+                if (root.has("budgets")) {
+                    val budgetArr = root.getJSONArray("budgets")
+                    for (i in 0 until budgetArr.length()) {
+                        val o = budgetArr.getJSONObject(i)
+                        dao.insertBudget(
+                            BudgetEntity(
+                                categoryId = mappedCategory(
+                                    o.optLong("categoryId", 0L),
+                                    TransactionType.EXPENSE
+                                ),
+                                monthlyLimit = o.optLong("monthlyLimit", 0L),
+                                monthYear = o.optString("monthYear", ""),
+                                alertThreshold = o.optInt("alertThreshold", 80).coerceIn(1, 100)
+                            )
+                        )
+                    }
                 }
             }
-
-            if (root.has("transactions")) {
-                val txArr = root.getJSONArray("transactions")
-                for (i in 0 until txArr.length()) {
-                    val o = txArr.getJSONObject(i)
-                    val tx = TransactionEntity(
-                        type = try { TransactionType.valueOf(o.optString("type")) } catch (e: Exception) { TransactionType.EXPENSE },
-                        amount = o.optLong("amount", 0L),
-                        accountId = o.optLong("accountId", 1L),
-                        destinationAccountId = if (o.isNull("destinationAccountId")) null else o.optLong("destinationAccountId"),
-                        categoryId = o.optLong("categoryId", 1L),
-                        description = o.optString("description", ""),
-                        note = o.optString("note", ""),
-                        timestamp = o.optLong("timestamp", System.currentTimeMillis()),
-                        tags = o.optString("tags", "")
-                    )
-                    dao.insertTransaction(tx)
-                }
-            }
-
-            if (root.has("goals")) {
-                val goalsArr = root.getJSONArray("goals")
-                for (i in 0 until goalsArr.length()) {
-                    val o = goalsArr.getJSONObject(i)
-                    val goal = SavingGoalEntity(
-                        title = o.optString("title", ""),
-                        targetAmount = o.optLong("targetAmount", 0L),
-                        currentAmount = o.optLong("currentAmount", 0L),
-                        targetDate = o.optLong("targetDate", System.currentTimeMillis()),
-                        colorHex = o.optLong("colorHex", 0xFF00A86B),
-                        iconName = o.optString("iconName", "flag"),
-                        isCompleted = o.optBoolean("isCompleted", false)
-                    )
-                    dao.insertGoal(goal)
-                }
-            }
-
-            if (root.has("debts")) {
-                val debtsArr = root.getJSONArray("debts")
-                for (i in 0 until debtsArr.length()) {
-                    val o = debtsArr.getJSONObject(i)
-                    val debt = DebtEntity(
-                        personName = o.optString("personName", ""),
-                        type = try { DebtType.valueOf(o.optString("type")) } catch (e: Exception) { DebtType.CREDITOR },
-                        amount = o.optLong("amount", 0L),
-                        paidAmount = o.optLong("paidAmount", 0L),
-                        dueDate = if (o.isNull("dueDate")) null else o.optLong("dueDate"),
-                        note = o.optString("note", ""),
-                        isSettled = o.optBoolean("isSettled", false),
-                        createdAt = o.optLong("createdAt", System.currentTimeMillis())
-                    )
-                    dao.insertDebt(debt)
-                }
-            }
-
-            if (root.has("installments")) {
-                val instArr = root.getJSONArray("installments")
-                for (i in 0 until instArr.length()) {
-                    val o = instArr.getJSONObject(i)
-                    val inst = InstallmentEntity(
-                        title = o.optString("title", ""),
-                        totalAmount = o.optLong("totalAmount", 0L),
-                        totalInstallments = o.optInt("totalInstallments", 1),
-                        paidInstallments = o.optInt("paidInstallments", 0),
-                        installmentAmount = o.optLong("installmentAmount", 0L),
-                        firstDueDate = o.optLong("firstDueDate", System.currentTimeMillis()),
-                        accountId = o.optLong("accountId", 1L),
-                        status = try { InstallmentStatus.valueOf(o.optString("status")) } catch (e: Exception) { InstallmentStatus.PENDING },
-                        note = o.optString("note", ""),
-                        paidIndicesWithDates = o.optString("paidIndicesWithDates", "")
-                    )
-                    dao.insertInstallment(inst)
-                }
-            }
-
-            if (root.has("budgets")) {
-                val budgetArr = root.getJSONArray("budgets")
-                for (i in 0 until budgetArr.length()) {
-                    val o = budgetArr.getJSONObject(i)
-                    val b = BudgetEntity(
-                        categoryId = o.optLong("categoryId", 1L),
-                        monthlyLimit = o.optLong("monthlyLimit", 0L),
-                        monthYear = o.optString("monthYear", ""),
-                        alertThreshold = o.optInt("alertThreshold", 80)
-                    )
-                    dao.insertBudget(b)
-                }
-            }
-
             true
         } catch (e: Exception) {
             e.printStackTrace()
