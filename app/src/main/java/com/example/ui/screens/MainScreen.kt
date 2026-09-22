@@ -285,11 +285,13 @@ fun MainScreen(
     // 4. Main App Scaffold with Tabs & FAB
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 0.dp
             ) {
                 NavigationBarItem(
                     selected = activeTab == 0,
@@ -334,15 +336,18 @@ fun MainScreen(
                 shape = CircleShape,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(6.dp),
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 2.dp,
+                    pressedElevation = 4.dp
+                ),
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(52.dp)
                     .testTag("global_add_fab")
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "ثبت تراکنش",
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }

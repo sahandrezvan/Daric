@@ -14,13 +14,15 @@ import com.example.core.model.AppLanguage
 import com.example.core.model.AppThemeMode
 
 fun getPrimaryColor(accent: AccentColorChoice): Color {
-    return when (accent) {
-        AccentColorChoice.EMERALD -> AccentEmerald
-        AccentColorChoice.SAPPHIRE -> AccentSapphire
-        AccentColorChoice.AMBER -> AccentAmber
-        AccentColorChoice.RUBY -> AccentRuby
-        AccentColorChoice.VIOLET -> AccentViolet
-    }
+    return ThemeStyleCatalog[accent]?.previewPrimary ?: AccentEmerald
+}
+
+fun resolveThemeSurfaces(
+    accent: AccentColorChoice,
+    isDark: Boolean
+): ThemeSurfaces {
+    val def = ThemeStyleCatalog[accent] ?: ThemeStyleCatalog.getValue(AccentColorChoice.EMERALD)
+    return if (isDark) def.dark else def.light
 }
 
 @Composable
@@ -36,37 +38,65 @@ fun DaricTheme(
         AppThemeMode.LIGHT -> false
     }
 
-    val primary = getPrimaryColor(accentColor)
+    val surfaces = resolveThemeSurfaces(accentColor, isDark)
 
     val colorScheme = if (isDark) {
         darkColorScheme(
-            primary = primary,
-            onPrimary = Color.Black,
-            primaryContainer = primary.copy(alpha = 0.2f),
-            onPrimaryContainer = primary,
-            background = DarkBackground,
-            onBackground = DarkTextPrimary,
-            surface = DarkSurface,
-            onSurface = DarkTextPrimary,
-            surfaceVariant = DarkSurfaceVariant,
-            onSurfaceVariant = DarkTextSecondary,
-            outline = DarkSurfaceBorder,
-            error = ExpenseRed
+            primary = surfaces.primary,
+            onPrimary = surfaces.onPrimary,
+            primaryContainer = surfaces.primary.copy(alpha = 0.16f),
+            onPrimaryContainer = surfaces.primary,
+            secondary = surfaces.onSurfaceVariant,
+            onSecondary = surfaces.background,
+            secondaryContainer = surfaces.surfaceVariant,
+            onSecondaryContainer = surfaces.onBackground,
+            tertiary = surfaces.primary,
+            onTertiary = surfaces.onPrimary,
+            background = surfaces.background,
+            onBackground = surfaces.onBackground,
+            surface = surfaces.surface,
+            onSurface = surfaces.onBackground,
+            surfaceVariant = surfaces.surfaceVariant,
+            onSurfaceVariant = surfaces.onSurfaceVariant,
+            outline = surfaces.outline,
+            outlineVariant = surfaces.outline.copy(alpha = 0.6f),
+            error = ExpenseRed,
+            onError = Color.White,
+            errorContainer = ExpenseRed.copy(alpha = 0.16f),
+            onErrorContainer = ExpenseRed,
+            inverseSurface = surfaces.onBackground,
+            inverseOnSurface = surfaces.background,
+            inversePrimary = surfaces.primary,
+            scrim = Color.Black.copy(alpha = 0.5f)
         )
     } else {
         lightColorScheme(
-            primary = primary,
-            onPrimary = Color.White,
-            primaryContainer = primary.copy(alpha = 0.15f),
-            onPrimaryContainer = primary,
-            background = LightBackground,
-            onBackground = LightTextPrimary,
-            surface = LightSurface,
-            onSurface = LightTextPrimary,
-            surfaceVariant = LightSurfaceVariant,
-            onSurfaceVariant = LightTextSecondary,
-            outline = LightSurfaceBorder,
-            error = ExpenseRed
+            primary = surfaces.primary,
+            onPrimary = surfaces.onPrimary,
+            primaryContainer = surfaces.primary.copy(alpha = 0.10f),
+            onPrimaryContainer = surfaces.primary,
+            secondary = surfaces.onSurfaceVariant,
+            onSecondary = Color.White,
+            secondaryContainer = surfaces.surfaceVariant,
+            onSecondaryContainer = surfaces.onBackground,
+            tertiary = surfaces.primary,
+            onTertiary = surfaces.onPrimary,
+            background = surfaces.background,
+            onBackground = surfaces.onBackground,
+            surface = surfaces.surface,
+            onSurface = surfaces.onBackground,
+            surfaceVariant = surfaces.surfaceVariant,
+            onSurfaceVariant = surfaces.onSurfaceVariant,
+            outline = surfaces.outline,
+            outlineVariant = surfaces.outline.copy(alpha = 0.7f),
+            error = ExpenseRed,
+            onError = Color.White,
+            errorContainer = ExpenseRed.copy(alpha = 0.10f),
+            onErrorContainer = ExpenseRed,
+            inverseSurface = surfaces.onBackground,
+            inverseOnSurface = surfaces.background,
+            inversePrimary = surfaces.primary,
+            scrim = Color.Black.copy(alpha = 0.4f)
         )
     }
 
@@ -80,12 +110,12 @@ fun DaricTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,
+            shapes = DaricShapes,
             content = content
         )
     }
 }
 
-// Backward compatibility alias for tests
 @Composable
 fun MyApplicationTheme(content: @Composable () -> Unit) {
     DaricTheme(content = content)
