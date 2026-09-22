@@ -207,6 +207,7 @@ fun MainScreen(
                 accounts = accounts,
                 currency = settings.currency,
                 digitFormat = settings.digitFormat,
+                isShamsi = isShamsi,
                 onAddInstallment = { title, total, count, paidCount, instAmt, due, accId, note ->
                     viewModel.addInstallment(title, total, count, paidCount, instAmt, due, accId, note)
                 },
@@ -233,12 +234,14 @@ fun MainScreen(
             )
             "calendar" -> CalendarViewScreen(
                 transactions = transactions,
+                installments = installments,
                 accounts = accounts,
                 categories = categories,
                 currency = settings.currency,
                 digitFormat = settings.digitFormat,
                 isShamsi = isShamsi,
                 onTransactionClick = {},
+                onInstallmentsClick = { viewModel.setTab(1) },
                 onBack = { viewModel.navigateToSubScreen(null) }
             )
             "search" -> GlobalSearchScreen(
@@ -414,6 +417,7 @@ fun MainScreen(
                         accounts = accounts,
                         currency = settings.currency,
                         digitFormat = settings.digitFormat,
+                        isShamsi = isShamsi,
                         onAddInstallment = { title, total, count, paidCount, instAmt, due, accId, note ->
                             viewModel.addInstallment(title, total, count, paidCount, instAmt, due, accId, note)
                         },

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.example.core.model.DigitFormat
 import com.example.core.util.CurrencyFormatter
 import com.example.core.util.JalaliCalendar
+import com.example.core.util.InstallmentScheduleHelper
 import com.example.data.local.entities.AccountEntity
 import com.example.data.local.entities.CategoryEntity
 import com.example.data.local.entities.InstallmentEntity
@@ -58,7 +59,6 @@ import com.example.ui.components.AccountCard
 import com.example.ui.components.FinancialMetricsGrid
 import com.example.ui.components.MonthlySummaryCard
 import com.example.ui.components.NetWorthCard
-import com.example.ui.components.QuickActionsGrid
 import com.example.ui.components.TransactionRowItem
 import com.example.ui.screens.installments.DueStatus
 import com.example.ui.screens.installments.calculateDueStatus
@@ -188,18 +188,7 @@ fun DashboardScreen(
             )
         }
 
-        // Quick Actions — hidden in compact (available via bottom tabs)
-        if (!compact) {
-            item {
-                QuickActionsGrid(
-                    onMarketRatesClick = onMarketRatesClick,
-                    onInstallmentsClick = onInstallmentsClick,
-                    onGoalsClick = onGoalsClick
-                )
-            }
-        }
-
-        // 3. Installments Due Alerts (هر وقت رسید نمایش بده)
+        // 3. Only the nearest actionable installment is shown to keep Home calm.
         if (dueInstallments.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -232,9 +221,12 @@ fun DashboardScreen(
                         }
                     }
 
-                    dueInstallments.forEach { inst ->
+                    dueInstallments.sortedBy {
+                        InstallmentScheduleHelper.nextUnpaid(it)?.scheduledDueDate ?: Long.MAX_VALUE
+                    }.take(1).forEach { inst ->
                         val (status, diffDays) = calculateDueStatus(inst)
-                        val dueDateStr = JalaliCalendar.formatDate(inst.firstDueDate, isShamsi = isShamsi)
+                        val nextItem = InstallmentScheduleHelper.nextUnpaid(inst)
+                        val dueDateStr = JalaliCalendar.formatDate(nextItem?.scheduledDueDate ?: inst.firstDueDate, isShamsi = isShamsi)
                         val badgeText = when (status) {
                             DueStatus.OVERDUE -> "⚠️ سررسید گذشته ($diffDays روز)"
                             DueStatus.DUE_TODAY -> "🔔 سررسید امروز!"
@@ -263,7 +255,7 @@ fun DashboardScreen(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "مبلغ قسط: ${CurrencyFormatter.format(inst.installmentAmount, userSettings.currency, userSettings.digitFormat)} (${inst.paidInstallments + 1}/${inst.totalInstallments})",
+                                            text = "مبلغ قسط: ${CurrencyFormatter.format(nextItem?.let { InstallmentScheduleHelper.amountFor(inst, it.index) } ?: inst.installmentAmount, userSettings.currency, userSettings.digitFormat)} (${nextItem?.index ?: inst.paidInstallments + 1}/${inst.totalInstallments})",
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -310,10 +302,13 @@ fun DashboardScreen(
             }
         } else if (activeInstallments.isNotEmpty()) {
             // Upcoming installments quick card
-            val nearest = activeInstallments.minByOrNull { it.firstDueDate }
+            val nearest = activeInstallments.minByOrNull {
+                InstallmentScheduleHelper.nextUnpaid(it)?.scheduledDueDate ?: Long.MAX_VALUE
+            }
             if (nearest != null) {
                 item {
-                    val formattedNextDate = JalaliCalendar.formatDate(nearest.firstDueDate, isShamsi = isShamsi)
+                    val nearestItem = InstallmentScheduleHelper.nextUnpaid(nearest)
+                    val formattedNextDate = JalaliCalendar.formatDate(nearestItem?.scheduledDueDate ?: nearest.firstDueDate, isShamsi = isShamsi)
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
@@ -350,7 +345,7 @@ fun DashboardScreen(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "تاریخ سررسید: $formattedNextDate | ${CurrencyFormatter.format(nearest.installmentAmount, userSettings.currency, userSettings.digitFormat)}",
+                                        text = "تاریخ سررسید: $formattedNextDate | ${CurrencyFormatter.format(nearestItem?.let { InstallmentScheduleHelper.amountFor(nearest, it.index) } ?: nearest.installmentAmount, userSettings.currency, userSettings.digitFormat)}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

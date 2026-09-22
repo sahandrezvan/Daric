@@ -381,6 +381,7 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
                 paidInstallments = paidInstallments,
                 installmentAmount = installmentAmount,
                 firstDueDate = firstDueDate,
+                scheduleStartDate = firstDueDate,
                 accountId = accountId,
                 note = note
             )
