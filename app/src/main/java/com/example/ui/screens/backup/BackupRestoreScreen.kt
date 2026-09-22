@@ -106,7 +106,7 @@ fun BackupRestoreScreen(
                         stream.write(json.toByteArray(Charsets.UTF_8))
                     }
                     isProcessing = false
-                    Toast.makeText(context, "فایل پشتیبان با موفقیت در حافظه گوشی ذخیره شد", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "فایل پشتیبان با موفقیت ذخیره شد", Toast.LENGTH_LONG).show()
                 } catch (e: Exception) {
                     isProcessing = false
                     Toast.makeText(context, "خطا در ذخیره فایل: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
@@ -323,7 +323,7 @@ fun BackupRestoreScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "ارسال و آپلود مستقیم فایل پشتیبان در Google Drive شخصی شما تا حتی با تعویض گوشی، اطلاعات حساب‌های شما همیشه محفوظ بماند.",
+                        text = "فایل پشتیبان با فایل‌پیکر امن اندروید ساخته می‌شود. در محل ذخیره، Google Drive را انتخاب کنید تا فایل مستقیماً داخل Drive شخصی شما نوشته شود؛ هیچ رمز یا توکن گوگل داخل داریک ذخیره نمی‌شود.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 20.sp
@@ -332,7 +332,10 @@ fun BackupRestoreScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = { shareBackupToGoogleDrive() },
+                        onClick = {
+                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                            createDocumentLauncher.launch("daric_drive_backup_$timeStamp.json")
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth(),
@@ -340,12 +343,12 @@ fun BackupRestoreScreen(
                     ) {
                         Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("ارسال و ذخیره در Google Drive")
+                        Text("انتخاب Google Drive و ذخیره پشتیبان")
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "نکته: در منوی باز شده گزینه «ذخیره در درایو (Save to Drive)» را انتخاب کنید.",
+                        text = "در فایل‌پیکر Android، از منوی مکان‌ها Google Drive را انتخاب کنید. همین مسیر برای بازیابی از Drive نیز پشتیبانی می‌شود.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
