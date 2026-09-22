@@ -469,7 +469,12 @@ fun MarketDetailDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = CurrencyFormatter.format(item.priceToman, currency, digitFormat),
+                            text = if (item.priceToman > 0) {
+                                CurrencyFormatter.format(item.priceToman, currency, digitFormat)
+                            } else {
+                                item.priceUsd?.let { "$${DecimalFormat(\"#,##0.##\").format(it)}" }
+                                    ?: "ناموجود"
+                            },
                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -478,6 +483,14 @@ fun MarketDetailDialog(
                                 text = "معادل: $${DecimalFormat("#,##0.##").format(item.priceUsd)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (item.source.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "منبع زنده: ${item.source}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
