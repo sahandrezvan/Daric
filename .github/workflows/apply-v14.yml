@@ -1,0 +1,27 @@
+name: Apply Daric 1.4 patch
+
+on:
+  push:
+    branches:
+      - feat/financial-planning-v1.4.0
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: add patch applicator'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply release changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git am daric-v1.4.0.patch
+          rm daric-v1.4.0.patch .github/workflows/apply-v14.yml
+          git add -A
+          git commit -m "chore: remove patch staging files"
+          git push origin HEAD:feat/financial-planning-v1.4.0
