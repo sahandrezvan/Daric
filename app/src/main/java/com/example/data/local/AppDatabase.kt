@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
         DebtEntity::class,
         UserSettingsEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -52,7 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "daric_finance_database"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addCallback(DatabaseCallback(scope))
                     .build()
                 INSTANCE = instance
@@ -73,6 +73,17 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE installments ADD COLUMN scheduleStartDate INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN recurringParentId INTEGER")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN nextOccurrenceAt INTEGER")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN dashboardSections TEXT NOT NULL DEFAULT 'installments,summary,accounts,recent'")
+                db.execSQL("ALTER TABLE user_settings ADD COLUMN installmentRemindersEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_recurringParentId ON transactions(recurringParentId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_nextOccurrenceAt ON transactions(nextOccurrenceAt)")
             }
         }
 

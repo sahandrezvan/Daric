@@ -25,5 +25,7 @@ data class UserSettingsEntity(
     val isBiometricEnabled: Boolean = false,
     val isOnboardingCompleted: Boolean = false,
     val lastBackupTimestamp: Long = 0L,
-    val autoBackupFrequency: String = "خاموش" // خاموش, روزانه, هفتگی, ماهانه
+    val autoBackupFrequency: String = "خاموش", // خاموش, روزانه, هفتگی, ماهانه
+    val dashboardSections: String = "installments,summary,accounts,recent",
+    val installmentRemindersEnabled: Boolean = true
 )

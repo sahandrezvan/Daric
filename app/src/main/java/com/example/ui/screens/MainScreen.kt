@@ -274,6 +274,8 @@ fun MainScreen(
                 onUpdatePin = { pin, en -> viewModel.updatePin(pin, en) },
                 onUpdateBiometric = { viewModel.updateBiometric(it) },
                 onUpdateCompactMode = { viewModel.updateCompactMode(it) },
+                onUpdateDashboardSections = { viewModel.updateDashboardSections(it) },
+                onUpdateInstallmentReminders = { viewModel.updateInstallmentReminders(it) },
                 onResetAllData = { viewModel.resetAllDataToZero() },
                 onNavigateToBackup = { viewModel.navigateToSubScreen("backup") },
                 onBack = { viewModel.navigateToSubScreen(null) }

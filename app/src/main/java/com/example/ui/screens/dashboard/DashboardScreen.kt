@@ -105,6 +105,7 @@ fun DashboardScreen(
     val todayFormatted = JalaliCalendar.formatDate(System.currentTimeMillis(), isShamsi = isShamsi)
     val compact = userSettings.isCompactMode
     val sectionGap = if (compact) 10.dp else 20.dp
+    val visibleSections = userSettings.dashboardSections.split(',').toSet()
     val contentPad = if (compact) {
         PaddingValues(horizontal = 16.dp, vertical = 10.dp)
     } else {
@@ -230,7 +231,7 @@ fun DashboardScreen(
         }
 
         // 3. Only the nearest actionable installment is shown to keep Home calm.
-        if (dueInstallments.isNotEmpty()) {
+        if ("installments" in visibleSections && dueInstallments.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
@@ -341,7 +342,7 @@ fun DashboardScreen(
                     }
                 }
             }
-        } else if (activeInstallments.isNotEmpty()) {
+        } else if ("installments" in visibleSections && activeInstallments.isNotEmpty()) {
             // Upcoming installments quick card
             val nearest = activeInstallments.minByOrNull {
                 InstallmentScheduleHelper.nextUnpaid(it)?.scheduledDueDate ?: Long.MAX_VALUE
@@ -406,7 +407,7 @@ fun DashboardScreen(
         }
 
         // 4. One calm monthly summary instead of a dense metrics grid.
-        item {
+        if ("summary" in visibleSections) item {
             MonthlySummaryCard(
                 income = monthlyIncome,
                 expense = monthlyExpense,
@@ -417,7 +418,7 @@ fun DashboardScreen(
         }
 
         // 5. Accounts Header & Carousel
-        item {
+        if ("accounts" in visibleSections) item {
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -492,7 +493,7 @@ fun DashboardScreen(
         }
 
         // 6. Recent Transactions Header & List
-        item {
+        if ("recent" in visibleSections) item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -521,7 +522,7 @@ fun DashboardScreen(
             }
         }
 
-        if (recentTransactions.isEmpty()) {
+        if ("recent" in visibleSections && recentTransactions.isEmpty()) {
             item {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
@@ -548,7 +549,7 @@ fun DashboardScreen(
                     }
                 }
             }
-        } else {
+        } else if ("recent" in visibleSections) {
             items(recentTransactions.take(3), key = { it.id }) { tx ->
                 val category = categoryMap[tx.categoryId]
                 val account = accountMap[tx.accountId]

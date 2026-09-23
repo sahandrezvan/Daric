@@ -14,12 +14,14 @@ import com.example.data.local.entities.InstallmentEntity
 import com.example.data.local.entities.SavingGoalEntity
 import com.example.data.local.entities.TransactionEntity
 import com.example.data.local.entities.UserSettingsEntity
+import com.example.core.util.RecurringSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 
 class FinanceRepository(private val db: AppDatabase) {
     private val dao: FinanceDao = db.financeDao()
@@ -36,6 +38,9 @@ class FinanceRepository(private val db: AppDatabase) {
 
     fun getBudgets(monthYear: String): Flow<List<BudgetEntity>> = dao.getBudgetsForMonth(monthYear)
     fun searchTransactions(query: String): Flow<List<TransactionEntity>> = dao.searchTransactions(query)
+    suspend fun getInstallmentsSnapshot(): List<InstallmentEntity> = withContext(Dispatchers.IO) {
+        dao.getAllInstallmentsSnapshot()
+    }
 
     // --- Transaction Execution with Balance Updating ---
     suspend fun addTransaction(tx: TransactionEntity): Long = withContext(Dispatchers.IO) {
@@ -56,6 +61,31 @@ class FinanceRepository(private val db: AppDatabase) {
             }
             id
         }
+    }
+
+    /** Materializes missed recurring occurrences, including periods while the app was closed. */
+    suspend fun processRecurringTransactions(now: Long = System.currentTimeMillis()): Int = withContext(Dispatchers.IO) {
+        var generated = 0
+        dao.getDueRecurringTemplates(now).forEach { template ->
+            var dueAt = template.nextOccurrenceAt ?: return@forEach
+            var safety = 0
+            while (dueAt <= now && safety++ < 120) {
+                addTransaction(
+                    template.copy(
+                        id = 0,
+                        timestamp = dueAt,
+                        createdAt = System.currentTimeMillis(),
+                        isRecurring = false,
+                        recurringParentId = template.id,
+                        nextOccurrenceAt = null
+                    )
+                )
+                generated++
+                dueAt = RecurringSchedule.next(dueAt, template.recurringInterval)
+            }
+            dao.updateTransaction(template.copy(nextOccurrenceAt = dueAt))
+        }
+        generated
     }
 
     suspend fun softDeleteTransaction(id: Long) = withContext(Dispatchers.IO) {
@@ -117,7 +147,10 @@ class FinanceRepository(private val db: AppDatabase) {
 
     // --- Budgets ---
     suspend fun setBudget(budget: BudgetEntity) = withContext(Dispatchers.IO) {
-        dao.insertBudget(budget)
+        val existing = dao.getBudgetForCategoryMonth(budget.categoryId, budget.monthYear)
+        if (existing == null) dao.insertBudget(budget) else dao.updateBudget(
+            existing.copy(monthlyLimit = budget.monthlyLimit, alertThreshold = budget.alertThreshold)
+        )
     }
 
     suspend fun deleteBudget(id: Long) = withContext(Dispatchers.IO) {
@@ -273,7 +306,7 @@ class FinanceRepository(private val db: AppDatabase) {
     // --- Export / Backup to JSON ---
     suspend fun exportDataAsJson(): String = withContext(Dispatchers.IO) {
         val root = JSONObject()
-        root.put("version", 2)
+        root.put("version", 3)
         root.put("timestamp", System.currentTimeMillis())
 
         val accountsArr = JSONArray()
@@ -315,6 +348,10 @@ class FinanceRepository(private val db: AppDatabase) {
             o.put("note", tx.note)
             o.put("timestamp", tx.timestamp)
             o.put("tags", tx.tags)
+            o.put("isRecurring", tx.isRecurring)
+            o.put("recurringInterval", tx.recurringInterval.name)
+            o.put("recurringParentId", tx.recurringParentId ?: JSONObject.NULL)
+            o.put("nextOccurrenceAt", tx.nextOccurrenceAt ?: JSONObject.NULL)
             txArr.put(o)
         }
         root.put("transactions", txArr)
@@ -381,6 +418,7 @@ class FinanceRepository(private val db: AppDatabase) {
         }
         root.put("budgets", budgetArr)
 
+        root.put("integritySha256", sha256(root.toString()))
         root.toString(2)
     }
 
@@ -404,7 +442,12 @@ class FinanceRepository(private val db: AppDatabase) {
         try {
             val root = JSONObject(jsonStr)
             val version = root.optInt("version", 1)
-            require(version in 1..2) { "Unsupported backup version: $version" }
+            require(version in 1..3) { "Unsupported backup version: $version" }
+            if (root.has("integritySha256")) {
+                val expected = root.getString("integritySha256")
+                root.remove("integritySha256")
+                require(sha256(root.toString()) == expected) { "Backup integrity check failed" }
+            }
 
             db.withTransaction {
                 val existingCategories = dao.getAllCategoriesSnapshot()
@@ -512,6 +555,8 @@ class FinanceRepository(private val db: AppDatabase) {
                                         o.optString("recurringInterval", "NONE")
                                     )
                                 }.getOrDefault(com.example.core.model.RecurringInterval.NONE),
+                                recurringParentId = null,
+                                nextOccurrenceAt = if (o.isNull("nextOccurrenceAt")) null else o.optLong("nextOccurrenceAt"),
                                 isSoftDeleted = false,
                                 createdAt = o.optLong("createdAt", System.currentTimeMillis())
                             )
@@ -608,4 +653,8 @@ class FinanceRepository(private val db: AppDatabase) {
             false
         }
     }
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
 }

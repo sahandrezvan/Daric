@@ -14,6 +14,7 @@ import com.example.core.model.InstallmentStatus
 import com.example.core.model.RecurringInterval
 import com.example.core.model.TransactionType
 import com.example.core.util.PinSecurity
+import com.example.core.util.RecurringSchedule
 import com.example.data.local.AppDatabase
 import com.example.data.local.entities.AccountEntity
 import com.example.data.local.entities.BudgetEntity
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import com.example.widget.DaricSummaryWidget
 
 class DaricViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -66,6 +68,7 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             weatherRepository.refresh()
         }
+        viewModelScope.launch { repository.processRecurringTransactions() }
     }
 
     val settings: StateFlow<UserSettingsEntity> = repository.userSettings
@@ -150,6 +153,16 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
         txs.filter { it.type == TransactionType.EXPENSE && it.timestamp >= startOfMonth }
             .sumOf { it.amount }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
+    init {
+        viewModelScope.launch {
+            combine(netWorth, monthlyIncome, monthlyExpense) { balance, income, expense ->
+                Triple(balance, income, expense)
+            }.collect { (balance, income, expense) ->
+                DaricSummaryWidget.publish(getApplication(), balance, income, expense)
+            }
+        }
+    }
 
     // UI Navigation & Dialog states
     private val _activeTab = MutableStateFlow(0) // 0: Home, 1: Transactions, 3: Reports, 4: More
@@ -252,7 +265,8 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
                 timestamp = timestamp,
                 tags = tags,
                 isRecurring = isRecurring,
-                recurringInterval = recurringInterval
+                recurringInterval = recurringInterval,
+                nextOccurrenceAt = if (isRecurring) RecurringSchedule.next(timestamp, recurringInterval) else null
             )
             repository.addTransaction(tx)
             _isAddTransactionOpen.value = false
@@ -475,6 +489,18 @@ class DaricViewModel(application: Application) : AndroidViewModel(application) {
     fun updateCompactMode(enabled: Boolean) {
         viewModelScope.launch {
             repository.updateSettings(settings.value.copy(isCompactMode = enabled))
+        }
+    }
+
+    fun updateDashboardSections(sections: String) {
+        viewModelScope.launch {
+            repository.updateSettings(settings.value.copy(dashboardSections = sections))
+        }
+    }
+
+    fun updateInstallmentReminders(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.updateSettings(settings.value.copy(installmentRemindersEnabled = enabled))
         }
     }
 

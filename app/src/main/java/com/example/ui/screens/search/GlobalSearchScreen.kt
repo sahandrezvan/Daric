@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -39,6 +43,7 @@ import com.example.core.model.DigitFormat
 import com.example.data.local.entities.AccountEntity
 import com.example.data.local.entities.CategoryEntity
 import com.example.data.local.entities.TransactionEntity
+import com.example.core.model.TransactionType
 import com.example.ui.components.TransactionRowItem
 
 @Composable
@@ -54,20 +59,26 @@ fun GlobalSearchScreen(
     modifier: Modifier = Modifier
 ) {
     var query by remember { mutableStateOf("") }
+    var typeFilter by remember { mutableStateOf<TransactionType?>(null) }
+    var dayRange by remember { mutableStateOf<Int?>(null) }
     val categoryMap = categories.associateBy { it.id }
     val accountMap = accounts.associateBy { it.id }
 
-    val results = if (query.isBlank()) {
+    val hasFilter = typeFilter != null || dayRange != null
+    val results = if (query.isBlank() && !hasFilter) {
         emptyList()
     } else {
         val q = query.trim().lowercase()
         transactions.filter { tx ->
-            tx.description.lowercase().contains(q) ||
+            val textMatches = q.isBlank() || tx.description.lowercase().contains(q) ||
                     tx.note.lowercase().contains(q) ||
                     tx.tags.lowercase().contains(q) ||
                     (categoryMap[tx.categoryId]?.nameFa?.contains(q) == true) ||
                     (accountMap[tx.accountId]?.name?.lowercase()?.contains(q) == true) ||
                     tx.amount.toString().contains(q)
+            val typeMatches = typeFilter == null || tx.type == typeFilter
+            val dateMatches = dayRange == null || tx.timestamp >= System.currentTimeMillis() - dayRange!! * 86_400_000L
+            textMatches && typeMatches && dateMatches
         }
     }
 
@@ -84,6 +95,7 @@ fun GlobalSearchScreen(
                     Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -102,10 +114,22 @@ fun GlobalSearchScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(selected = typeFilter == null, onClick = { typeFilter = null }, label = { Text("همه") })
+                    TransactionType.entries.forEach { type ->
+                        FilterChip(selected = typeFilter == type, onClick = { typeFilter = type }, label = { Text(type.titleFa) })
+                    }
+                    FilterChip(selected = dayRange == 7, onClick = { dayRange = if (dayRange == 7) null else 7 }, label = { Text("۷ روز") })
+                    FilterChip(selected = dayRange == 30, onClick = { dayRange = if (dayRange == 30) null else 30 }, label = { Text("۳۰ روز") })
+                }
+                }
             }
         }
     ) { innerPadding ->
-        if (query.isBlank()) {
+        if (query.isBlank() && !hasFilter) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
