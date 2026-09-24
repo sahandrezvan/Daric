@@ -17,8 +17,8 @@ android {
     applicationId = "ir.sahand.daric"
     minSdk = 24
     targetSdk = 36
-    versionCode = 4
-    versionName = "1.3.0"
+    versionCode = 5
+    versionName = "1.4.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -95,6 +95,7 @@ dependencies {
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.work.runtime.ktx)
   // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)

@@ -96,9 +96,15 @@ interface FinanceDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getTransactionById(id: Long): TransactionEntity?
 
+    @Query("SELECT * FROM transactions WHERE isRecurring = 1 AND recurringParentId IS NULL AND nextOccurrenceAt IS NOT NULL AND nextOccurrenceAt <= :now AND isSoftDeleted = 0")
+    suspend fun getDueRecurringTemplates(now: Long): List<TransactionEntity>
+
     // --- Budgets ---
     @Query("SELECT * FROM budgets WHERE monthYear = :monthYear")
     fun getBudgetsForMonth(monthYear: String): Flow<List<BudgetEntity>>
+
+    @Query("SELECT * FROM budgets WHERE categoryId = :categoryId AND monthYear = :monthYear LIMIT 1")
+    suspend fun getBudgetForCategoryMonth(categoryId: Long, monthYear: String): BudgetEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBudget(budget: BudgetEntity): Long
@@ -151,6 +157,9 @@ interface FinanceDao {
     // --- User Settings ---
     @Query("SELECT * FROM user_settings WHERE id = 1 LIMIT 1")
     fun getUserSettings(): Flow<UserSettingsEntity?>
+
+    @Query("SELECT * FROM user_settings WHERE id = 1 LIMIT 1")
+    suspend fun getUserSettingsSnapshot(): UserSettingsEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUserSettings(settings: UserSettingsEntity)

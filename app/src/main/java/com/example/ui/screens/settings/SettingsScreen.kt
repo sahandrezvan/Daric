@@ -80,6 +80,8 @@ fun SettingsScreen(
     onUpdatePin: (String, Boolean) -> Unit,
     onUpdateBiometric: (Boolean) -> Unit,
     onUpdateCompactMode: (Boolean) -> Unit = {},
+    onUpdateDashboardSections: (String) -> Unit = {},
+    onUpdateInstallmentReminders: (Boolean) -> Unit = {},
     onResetAllData: () -> Unit = {},
     onNavigateToBackup: (() -> Unit)? = null,
     onBack: () -> Unit,
@@ -339,6 +341,30 @@ fun SettingsScreen(
                                 onCheckedChange = onUpdateCompactMode
                             )
                         }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("بخش‌های قابل نمایش در داشبورد", style = MaterialTheme.typography.labelLarge)
+                        listOf(
+                            "installments" to "اقساط نزدیک",
+                            "summary" to "خلاصه ماهانه",
+                            "accounts" to "حساب‌ها",
+                            "recent" to "تراکنش‌های اخیر"
+                        ).forEach { (key, title) ->
+                            val sections = settings.dashboardSections.split(',').filter { it.isNotBlank() }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(title, style = MaterialTheme.typography.bodyMedium)
+                                Switch(
+                                    checked = key in sections,
+                                    onCheckedChange = { enabled ->
+                                        val updated = if (enabled) (sections + key).distinct() else sections - key
+                                        onUpdateDashboardSections(updated.joinToString(","))
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -550,6 +576,21 @@ fun SettingsScreen(
                                         onUpdateBiometric(false)
                                     }
                                 }
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("یادآوری سررسید اقساط", style = MaterialTheme.typography.bodyMedium)
+                                Text("اعلان برای اقساط معوق یا سه روز آینده", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(
+                                checked = settings.installmentRemindersEnabled,
+                                onCheckedChange = onUpdateInstallmentReminders
                             )
                         }
                     }

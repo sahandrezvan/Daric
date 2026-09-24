@@ -12,6 +12,8 @@ import com.example.core.model.TransactionType
         Index(value = ["timestamp"]),
         Index(value = ["accountId"]),
         Index(value = ["categoryId"]),
+        Index(value = ["recurringParentId"]),
+        Index(value = ["nextOccurrenceAt"]),
         Index(value = ["isSoftDeleted"])
     ]
 )
@@ -30,6 +32,10 @@ data class TransactionEntity(
     val attachmentPath: String? = null,
     val isRecurring: Boolean = false,
     val recurringInterval: RecurringInterval = RecurringInterval.NONE,
+    /** Non-null for generated occurrences; points to the recurring template. */
+    val recurringParentId: Long? = null,
+    /** Next time this template should create an occurrence. */
+    val nextOccurrenceAt: Long? = null,
     val isSoftDeleted: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
